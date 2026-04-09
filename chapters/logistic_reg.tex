@@ -1,0 +1,69 @@
+\chapter*{Logistic Regression}
+\addcontentsline{toc}{chapter}{Logistic Regression}
+
+\section*{A Probabilistic View of Machine Learning}
+
+Up to this point, we have largely viewed classification through a geometric or functional lens (e.g., finding a hyperplane that separates classes). Logistic Regression introduces a \textbf{probabilistic formulation} of learning.
+
+Instead of just predicting a discrete label $y \in \{0, 1\}$ given an input $\xx$, we want to learn the \textbf{conditional probability density} that the label is $y$, given $\xx$. We want our model to output:
+$$P(y \mid \xx)$$
+
+\begin{description}
+    \item[Generative Models:] These models attempt to learn the joint probability $P(\xx, y)$ or the conditional distribution of the features given the class, $P(\xx \mid y)$. They essentially try to model exactly how the data for each class was generated (e.g., Naive Bayes).
+    \item[Discriminative Models:] These models bypass modeling the underlying data distribution and attempt to learn the conditional probability $P(y \mid \xx)$ directly. \textbf{Logistic Regression is a discriminative model.}
+\end{description}
+
+\section*{The Logistic Sigmoid Function}
+
+A standard linear model calculates a raw score $z = \mathbf{w}^T\xx + w_0$, which can range from $-\infty$ to $+\infty$. To interpret this output as a probability, we need to map it to the range $[0, 1]$. We achieve this using the Logistic Sigmoid function.
+
+\begin{definition}[Logistic Sigmoid Function]
+The sigmoid function, denoted as $\sigma(z)$, "squashes" any real-valued number into the range $(0, 1)$:
+$$\sigma(z) = \frac{1}{1 + e^{-z}}$$
+\end{definition}
+
+\textbf{Key Properties of $\sigma(z)$:}
+\begin{itemize}
+    \item As $z \rightarrow \infty$, $\sigma(z) \rightarrow 1$.
+    \item As $z \rightarrow -\infty$, $\sigma(z) \rightarrow 0$.
+    \item When $z = 0$, $\sigma(0) = 0.5$.
+    \item Symmetry property: $\sigma(-z) = 1 - \sigma(z)$.
+\end{itemize}
+
+\section*{The Logistic Regression Model}
+
+In binary Logistic Regression (where $y \in \{0, 1\}$), the hypothesis function $f_{\mathbf{w}}(\xx)$ models the probability that the positive class ($y=1$) is true:
+
+$$\hat{y} = f_{\mathbf{w}}(\xx) = P(y=1 \mid \xx) = \sigma(\mathbf{w}^T\xx + w_0) = \frac{1}{1 + e^{-(\mathbf{w}^T\xx + w_0)}}$$
+
+Consequently, the probability of the negative class is simply $P(y=0 \mid \xx) = 1 - P(y=1 \mid \xx)$.
+
+\begin{remark}[The Decision Boundary]
+To make a final hard classification, we typically apply a threshold of $0.5$. We predict $y=1$ if $P(y=1 \mid \xx) \geq 0.5$.
+Because $\sigma(z) \geq 0.5$ exactly when $z \geq 0$, our prediction rule simplifies to:
+$$\text{Predict } 1 \text{ if } \mathbf{w}^T\xx + w_0 \geq 0$$
+Therefore, despite the non-linear sigmoid transformation yielding probabilities, \textbf{the underlying decision boundary separating the classes is strictly linear} (a flat hyperplane).
+\end{remark}
+
+\section*{Training: Maximum Likelihood and Log-Loss}
+
+Because Logistic Regression outputs probabilities, we do not train it using the standard sum of squared errors. Instead, we use \textbf{Maximum Conditional Likelihood Estimation (MCLE)}. We want to find the parameters $\mathbf{w}$ that maximize the probability of observing the labels in our training dataset.
+
+Instead of maximizing the raw likelihood (which leads to numerical underflow due to multiplying many small probabilities), we typically \textbf{minimize the negative log-likelihood}, which gives us our cost function.
+
+\begin{definition}[Binary Cross-Entropy / Log Loss]
+For a dataset of $N$ examples, the Logistic Regression cost function $L(\mathbf{w})$ is defined as:
+$$L(\mathbf{w}) = -\frac{1}{N} \sum_{i=1}^N \left[ y^{(i)} \log(\hat{y}^{(i)}) + (1 - y^{(i)}) \log(1 - \hat{y}^{(i)}) \right]$$
+where $\hat{y}^{(i)} = \sigma(\mathbf{w}^T\xx^{(i)} + w_0)$ is the predicted probability.
+\end{definition}
+
+This loss function heavily penalizes the model if it confidently predicts the wrong class (e.g., predicting $\hat{y} \approx 0$ when the true label $y = 1$ causes the $-\log(\hat{y})$ term to approach infinity).
+
+\section*{Optimization and Regularization}
+
+Unlike Linear Regression, setting the gradient of the Logistic Regression loss function to zero \textbf{does not yield a closed-form analytical solution} due to the non-linear $e^{-z}$ term in the sigmoid.
+
+\begin{description}
+    \item[Optimization:] We must use iterative optimization techniques, such as \textbf{Gradient Descent} (or Gradient Ascent, if maximizing likelihood directly). Fortunately, the Log-Loss function is strictly \textbf{convex}, meaning Gradient Descent is guaranteed to find the global optimal weights $\mathbf{w}^*$.
+    \item[Regularization:] If the training data is perfectly linearly separable, the algorithm will try to push the probabilities to exactly $1.0$ and $0.0$. To do this, the weights $||\mathbf{w}||$ will grow towards infinity, leading to severe overfitting. To prevent this, we must add $L_1$ (Lasso) or $L_2$ (Ridge) regularization penalties to the loss function.
+\end{description}

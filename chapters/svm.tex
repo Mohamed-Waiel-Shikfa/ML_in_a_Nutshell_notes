@@ -1,0 +1,81 @@
+
+\chapter*{Support Vector Machines (SVM)}
+\addcontentsline{toc}{chapter}{Support Vector Machines (SVM)}
+
+\section*{The Optimal Decision Boundary}
+
+When training a linear classifier, there may be infinitely many hyperplanes that perfectly separate two linearly separable classes. Support Vector Machines (SVMs) are designed to answer the fundamental question: \textit{Which of these boundaries is the best?}
+
+Intuitively, the best decision boundary is the one that is furthest away from the closest training data points of any class. This concept is formalized using the geometric margin.
+
+\begin{definition}[Geometric Margin]
+The \textbf{margin} is defined as the perpendicular distance between the decision boundary (the hyperplane) and the closest data points from each class.
+SVM seeks to find the hyperplane that \textbf{maximizes this margin}.
+\end{definition}
+
+\begin{definition}[Support Vectors]
+The \textbf{support vectors} are the specific data points that lie exactly on the margin boundaries. They are the most difficult points to classify. The entire position and orientation of the optimal hyperplane depend \textit{only} on these support vectors; if all other data points were moved or removed, the decision boundary would not change.
+\end{definition}
+
+\section*{Hard Margin vs. Soft Margin}
+
+\subsection*{Hard Margin SVM}
+A Hard Margin SVM enforces a strict rule: all data points must be correctly classified, and no points are allowed to fall inside the margin.
+
+Mathematically, the total width of the margin is $\frac{2}{||\mathbf{w}||}$. To maximize the margin, we must minimize $||\mathbf{w}||$. The optimization problem is:
+$$ \min_{\mathbf{w}, w_0} \frac{1}{2} ||\mathbf{w}||^2 $$
+Subject to the strict constraints: $y^{(i)} (\mathbf{w}^T \xx^{(i)} + w_0) \geq 1 \quad \text{for all } i$.
+
+\begin{remark}
+Hard Margin SVMs only work if the data is \textbf{perfectly linearly separable}. Even a single outlier can drastically skew the boundary or make finding a solution impossible.
+\end{remark}
+
+\subsection*{Soft Margin SVM}
+To handle data that is not perfectly separable or contains noisy outliers, we introduce the \textbf{Soft Margin SVM}. It allows some points to violate the margin boundary (or even be misclassified) by introducing \textbf{slack variables}, denoted by $\xi_i \geq 0$.
+
+The modified optimization problem becomes:
+$$ \min_{\mathbf{w}, w_0, \xi} \left( \frac{1}{2} ||\mathbf{w}||^2 + C \sum_{i=1}^N \xi_i \right) $$
+
+\begin{description}
+    \item[The Regularization Parameter ($C$):] The hyperparameter $C$ controls the trade-off between maximizing the margin width and minimizing the classification errors (slack).
+    \begin{itemize}
+        \item \textbf{Large $C$:} Imposes a high penalty for errors. The model will choose a narrower margin to perfectly classify as many training points as possible (prone to overfitting).
+        \item \textbf{Small $C$:} Imposes a low penalty for errors. The model favors a wider, smoother margin, even if it misclassifies a few training points (better generalization, prone to underfitting).
+    \end{itemize}
+\end{description}
+
+\section*{SVM and the Hinge Loss}
+
+We can also view Soft Margin SVM through the lens of Empirical Risk Minimization (ERM) that we established in previous lectures. Training a Soft Margin SVM is mathematically equivalent to minimizing the \textbf{Hinge Loss} combined with $L_2$ Regularization:
+
+$$ L(\mathbf{w}) = \sum_{i=1}^N \max(0, 1 - y^{(i)}f_{\mathbf{w}}(\xx^{(i)})) + \lambda ||\mathbf{w}||^2 $$
+
+Where $f_{\mathbf{w}}(\xx) = \mathbf{w}^T\xx + w_0$. The Hinge loss penalizes predictions not just when they have the wrong sign, but when they fall inside the margin (i.e., when the functional margin $y^{(i)}f_{\mathbf{w}}(\xx^{(i)}) < 1$).
+
+\section*{The Kernel Trick}
+
+Often, the data is highly non-linear and cannot be separated by a flat hyperplane, even with a soft margin. While we could explicitly map the input features $\xx$ to a higher-dimensional space $\phi(\xx)$ (like polynomial features), doing so is computationally expensive for very high dimensions.
+
+\begin{definition}[The Kernel Trick]
+In the dual mathematical formulation of the SVM, the data points only ever appear as dot products: $\xx^{(i)} \cdot \xx^{(j)}$. The Kernel Trick replaces this dot product with a \textbf{Kernel Function} $K(\xx^{(i)}, \xx^{(j)})$, which computes the dot product in the higher-dimensional space \textit{without ever explicitly transforming the vectors}.
+$$ K(\xx^{(i)}, \xx^{(j)}) = \phi(\xx^{(i)})^T \phi(\xx^{(j)}) $$
+\end{definition}
+
+This allows the SVM to learn highly non-linear decision boundaries efficiently. Common kernels include:
+\begin{itemize}
+    \item \textbf{Linear Kernel:} Standard dot product (no transformation).
+    \item \textbf{Polynomial Kernel:} Maps data to a polynomial feature space.
+    \item \textbf{RBF / Gaussian Kernel:} Maps data to an infinite-dimensional space, capable of wrapping completely around clusters of data.
+\end{itemize}
+
+\section*{Support Vector Regression (SVR)}
+
+The concepts of SVMs can be naturally extended from classification to regression tasks.
+
+In standard regression, we penalize the model for any deviation from the true target value. In \textbf{Support Vector Regression (SVR)}, we replace the concept of a "classification margin" with an \textbf{$\epsilon$-insensitive tube} that surrounds the regression curve.
+
+\begin{description}
+    \item[$\epsilon$-insensitive error:] If a predicted value falls \textit{inside} the tube of width $\epsilon$ around the true value, the error is ignored (zero loss). We only pay a penalty (using slack variables $\xi$) for predictions that fall \textit{outside} of this tube.
+\end{description}
+
+Like classification SVMs, SVR relies on support vectors (the points identifying the tube) and can be fully kernelized to fit non-linear regression curves.

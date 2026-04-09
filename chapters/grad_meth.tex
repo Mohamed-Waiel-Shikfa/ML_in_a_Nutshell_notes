@@ -1,0 +1,105 @@
+\chapter*{Gradient Methods for Model Optimization}
+\addcontentsline{toc}{chapter}{Gradient Methods for Model Optimization}
+
+\section*{The Optimization Problem}
+
+Once a model hypothesis $f_{\mathbf{w}}(\xx)$ and a loss function $\ell(\hat{y}, y)$ are defined, the machine learning task reduces to an optimization problem: Empirical Risk Minimization (ERM). Our goal is to find the optimal parameter vector $\mathbf{w}^*$ that minimizes the average loss over the training set:
+$$\mathbf{w}^* = \arg\min_{\mathbf{w}} L(\mathbf{w}) = \arg\min_{\mathbf{w}} \frac{1}{N} \sum_{i=1}^N \ell\left(f_{\mathbf{w}}(\xx^{(i)}), y^{(i)}\right)$$
+
+While some linear models (like Ordinary Least Squares) have a closed-form analytical solution by setting $\nabla_{\mathbf{w}} L(\mathbf{w}) = \mathbf{0}$, most complex models (such as logistic regression and neural networks) result in loss functions that cannot be solved analytically. Thus, we must rely on iterative numerical optimization.
+
+\section*{Gradient Descent Fundamentals}
+
+\begin{definition}[Gradient Descent (GD)]
+Gradient Descent is an iterative optimization algorithm for finding a local minimum of a differentiable function. At each step, it calculates the gradient $\nabla_{\mathbf{w}} L(\mathbf{w})$ (the vector of partial derivatives) at the current point $\mathbf{w}^{(t)}$ and takes a step in the exact opposite direction, as the negative gradient points towards the steepest descent.
+\end{definition}
+
+The fundamental update rule at iteration $t$ is:
+$$\mathbf{w}^{(t+1)} = \mathbf{w}^{(t)} - \eta \nabla_{\mathbf{w}} L(\mathbf{w}^{(t)})$$
+
+\begin{description}
+    \item[The Learning Rate ($\eta$):] Also called the step size, $\eta$ determines how far the algorithm moves along the negative gradient.
+    \begin{itemize}
+        \item If $\eta$ is \textbf{too small}, convergence will be painstakingly slow, risking getting trapped in sub-optimal regions.
+        \item If $\eta$ is \textbf{too large}, the updates can overshoot the minimum, leading to oscillation or complete divergence.
+    \end{itemize}
+\end{description}
+
+\begin{remark}[Convexity vs. Non-Convexity]
+If the loss surface $L(\mathbf{w})$ is \textbf{convex} (bowl-shaped, like in Linear Regression or Logistic Regression), GD is guaranteed to eventually converge to the single global minimum. If the surface is \textbf{non-convex} (like in deep neural networks), the algorithm may get stuck in \textit{local minima}, \textit{saddle points}, or flat \textit{plateaus}.
+\end{remark}
+
+\section*{Data-Sampling Variants of Gradient Descent}
+
+Computing the gradient requires summing the loss derivatives over the training data. Depending on how much data we use per step, we define three main variants of GD:
+
+\begin{description}
+    \item[Batch Gradient Descent (BGD):] Computes the gradient using the \textbf{entire} training dataset ($N$ samples) for a single update.
+    \begin{itemize}
+        \item \textit{Pros:} Provides a highly accurate estimate of the gradient; guarantees stable convergence.
+        \item \textit{Cons:} Computationally expensive and memory-intensive. Impractical for massive datasets as one tiny step requires a full pass over all data.
+    \end{itemize}
+
+    \item[Stochastic Gradient Descent (SGD):] Computes the gradient using only \textbf{one randomly selected} training example per update.
+    \begin{itemize}
+        \item \textit{Pros:} Extremely fast per iteration; low memory requirement. The inherent noise from single samples can help the optimizer "bounce" out of shallow local minima.
+        \item \textit{Cons:} High variance in updates causes the loss to fluctuate wildly, preventing it from settling smoothly at the exact minimum.
+    \end{itemize}
+
+    \item[Mini-Batch Gradient Descent:] The standard compromise. It computes the gradient on a small, random \textbf{subset} (a mini-batch) of $B$ training examples (e.g., $B = 32, 64, 128$).
+    \begin{itemize}
+        \item \textit{Pros:} Significantly reduces the variance of the parameter updates compared to pure SGD, leading to more stable convergence. Crucially, it exploits hardware optimizations (like GPU matrix vectorization) making it much faster than BGD.
+    \end{itemize}
+\end{description}
+
+\section*{Advanced Gradient Methods}
+
+Standard SGD/Mini-batch GD can struggle with pathological curvature (e.g., steep ravines) and can be slow. Advanced optimizers manipulate the update rule to accelerate and stabilize convergence.
+
+\subsection*{Momentum-Based Methods}
+
+\begin{definition}[Momentum]
+Instead of depending strictly on the current gradient, Momentum accumulates an exponentially decaying moving average of past gradients to determine the update direction. It acts like a ball rolling down a hill, gaining speed in consistent directions and dampening oscillations in erratic directions.
+\end{definition}
+
+\begin{description}
+    \item[Standard Momentum:] Computes a "velocity" vector $v_t = \gamma v_{t-1} + \eta \nabla_{\mathbf{w}} L(\mathbf{w})$. The weights are updated as $\mathbf{w} \leftarrow \mathbf{w} - v_t$.
+    \item[Nesterov Accelerated Gradient (NAG):] A "look-ahead" version of momentum. Instead of evaluating the gradient at the current position $\mathbf{w}$, it calculates the gradient at the \textit{predicted} future position $\mathbf{w} - \gamma v_{t-1}$. This anticipatory step prevents the algorithm from overshooting the minimum.
+\end{description}
+
+\subsection*{Adaptive Learning Rate Methods}
+
+Instead of using a single global learning rate $\eta$ for all parameters, adaptive methods dynamically tune the learning rate for each individual parameter $w_j$.
+
+\begin{description}
+    \item[AdaGrad (Adaptive Gradient):] Scales the learning rate for each parameter inversely proportional to the square root of the sum of all its historical squared gradients. It performs larger updates for infrequent features and smaller updates for frequent features. \textit{Drawback:} The accumulated sum continuously grows, eventually causing the learning rate to shrink to zero, stopping training prematurely.
+    \item[RMSprop:] Fixes AdaGrad's diminishing learning rate by using an exponentially decaying average of squared gradients, rather than a cumulative sum.
+\end{description}
+
+\subsection*{Adam (Adaptive Moment Estimation)}
+
+\begin{definition}[Adam Optimizer]
+Adam is currently the most popular default optimizer in deep learning. It combines the benefits of both \textbf{Momentum} (smoothing via the 1st statistical moment) and \textbf{RMSprop} (adaptive scaling via the 2nd statistical moment).
+\end{definition}
+
+The Adam update rule consists of 4 formal steps at iteration $t$:
+\begin{enumerate}
+    \item \textbf{Momentum (1st Moment):} Compute the exponentially weighted average of past gradients.
+    $$m_t = \beta_1 m_{t-1} + (1 - \beta_1) \nabla f(\mathbf{w}_{t-1})$$
+    This smooths updates and reduces oscillations.
+
+    \item \textbf{Adaptive Scaling (2nd Moment):} Compute the exponentially weighted average of past \textit{squared} gradients.
+    $$v_t = \beta_2 v_{t-1} + (1 - \beta_2) (\nabla f(\mathbf{w}_{t-1}))^2$$
+    This prevents overly large updates when gradients are huge, and ensures reasonable updates in noisy areas.
+
+    \item \textbf{Bias Correction:} Because $m_t$ and $v_t$ are initialized to zero, they are biased toward zero early in training. We correct them:
+    $$\hat{m}_t = \frac{m_t}{1 - \beta_1^t} \quad \text{and} \quad \hat{v}_t = \frac{v_t}{1 - \beta_2^t}$$
+
+    \item \textbf{Parameter Update Rule:}
+    $$\mathbf{w}_t = \mathbf{w}_{t-1} - \frac{\eta}{\sqrt{\hat{v}_t} + \epsilon} \hat{m}_t$$
+    \textit{(Where $\epsilon$ is a tiny constant to prevent division by zero).}
+\end{enumerate}
+
+\begin{remark}[Why Adam Works]
+The effective learning rate in Adam is heavily adaptive. If the gradient magnitude is consistently large, the step size safely decreases. If gradients are small (e.g., in a plateau), the step size increases to prevent stalling. Combined with Momentum's directional consistency, Adam achieves rapid and robust convergence in non-convex landscapes.
+\end{remark}
