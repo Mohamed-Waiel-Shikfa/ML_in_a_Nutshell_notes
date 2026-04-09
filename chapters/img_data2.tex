@@ -1,0 +1,83 @@
+\chapter*{Feature Engineering for Images (Part 2)}
+\addcontentsline{toc}{chapter}{Feature Engineering for Images (Part 2)}
+
+\section*{Image Binarization and Thresholding}
+
+Before extracting complex structures, it is often useful to separate the foreground (objects of interest) from the background. We achieve this by converting a grayscale image into a binary image (0s and 1s).
+
+\subsection*{1. Global Thresholding}
+A single, hard cutoff value $T$ is applied to the entire image.
+$$
+\text{Pixel}_{new} =
+\begin{cases}
+255 & \text{if } \text{Pixel}_{old} > T \\
+0 & \text{otherwise}
+\end{cases}
+$$
+\begin{remark}
+    Global thresholding fails miserably if the image has a lighting gradient (e.g., uneven shadows across a document), as one side will turn entirely black and the other entirely white.
+\end{remark}
+
+\subsection*{2. Adaptive (Local) Thresholding}
+Instead of one global $T$, a local threshold is calculated independently for small regions (e.g., an $11 \times 11$ pixel block) of the image.
+\begin{itemize}
+    \item \textbf{Mean Thresholding:} The threshold is the mean of the neighborhood area.
+    \item \textbf{Gaussian Thresholding:} The threshold is the weighted sum of neighborhood values, where weights are a Gaussian window.
+\end{itemize}
+This naturally handles varying illumination across the image.
+
+\subsection*{3. Otsu's Binarization}
+Otsu's method is an algorithm that automatically discovers the optimal global threshold $T$. It assumes the image contains two classes of pixels (foreground and background) forming a bimodal histogram. It iterates through all possible threshold values to find the one that minimizes \textit{intra-class variance} (or equivalently, maximizes \textit{inter-class variance}).
+
+\section*{Local Operations \& Corner Detection}
+
+To track objects across different images, we must find distinct, repeatable points.
+\begin{itemize}
+    \item \textbf{Flat Regions:} No gradient in any direction. Useless for tracking.
+    \item \textbf{Edges:} Gradient in one direction. Good, but suffers from the "aperture problem" (we cannot determine where exactly we are along the edge).
+    \item \textbf{Corners:} High gradients in \textit{all} directions. Highly distinct and excellent for tracking.
+\end{itemize}
+
+\subsection*{Harris Corner Detector}
+
+The Harris Corner Detector formally identifies corners by analyzing the change in intensity resulting from shifting a local window by a small amount $(u, v)$.
+
+The core of the algorithm relies on the \textbf{Structure Tensor} (or Second Moment Matrix), denoted $M$, which is computed from the image derivatives $I_x$ and $I_y$ over a local window $W$:
+$$M = \sum_{(x,y) \in W} \begin{bmatrix} I_x^2 & I_x I_y \\ I_x I_y & I_y^2 \end{bmatrix}$$
+
+By analyzing the eigenvalues ($\lambda_1, \lambda_2$) of this matrix, we categorize the region:
+\begin{description}
+    \item[Corner:] Both $\lambda_1$ and $\lambda_2$ are large. Shifting the window in any direction yields a large change.
+    \item[Edge:] One eigenvalue is large, the other is small.
+    \item[Flat:] Both eigenvalues are small.
+\end{description}
+
+\section*{The Feature Matching Pipeline}
+
+Once we find distinct points, how do we match them between two different images (e.g., for panorama stitching or 3D reconstruction)? The standard classical pipeline consists of three steps:
+
+\begin{enumerate}
+    \item \textbf{Detection (Keypoints):} Identify repeatable interest points (like Harris corners or blobs) in the image.
+    \item \textbf{Description (Descriptors):} Extract a vector that mathematically describes the neighborhood around the keypoint. This descriptor must be robust to lighting and rotation.
+    \item \textbf{Matching:} Compute the distance (e.g., Euclidean or Hamming distance) between descriptors in Image A and Image B to find corresponding pairs.
+\end{enumerate}
+
+\section*{Advanced Feature Descriptors}
+
+While Harris corners are invariant to rotation, they are \textbf{not scale-invariant} (if you zoom in closely on a corner, it looks like an edge!). State-of-the-art classical computer vision utilizes descriptors that overcome this.
+
+\subsection*{SIFT (Scale-Invariant Feature Transform)}
+SIFT is arguably the most famous feature descriptor. It is highly robust but computationally heavy.
+\begin{description}
+    \item[Detection:] Uses the \textit{Difference of Gaussians (DoG)} at multiple scales to find blobs (keypoints) that exist consistently across different zoom levels.
+    \item[Orientation Assignment:] Computes the dominant gradient direction around the keypoint and aligns the descriptor to it, ensuring true rotation invariance.
+    \item[Description:] Creates a $4 \times 4$ grid around the keypoint. In each of the 16 cells, it computes a Histogram of Oriented Gradients (HOG) with 8 bins. This results in a highly descriptive $16 \times 8 = 128$-dimensional continuous feature vector.
+\end{description}
+
+\subsection*{ORB (Oriented FAST and Rotated BRIEF)}
+ORB was developed as an efficient, fast, and free alternative to SIFT, making it heavily utilized in real-time robotics and mobile applications.
+\begin{description}
+    \item[FAST Detection:] Rapidly finds keypoints by comparing the intensity of a central pixel to a circular ring of 16 surrounding pixels. If contiguous pixels are significantly brighter or darker, it's a corner.
+    \item[BRIEF Description:] Instead of computing continuous gradients, BRIEF creates a \textit{binary descriptor} (a string of 0s and 1s) by doing simple pairwise intensity comparisons between random pixels in the neighborhood.
+    \item[Matching:] Because descriptors are binary, matching is extremely fast using the Hamming distance (computed via a fast XOR operation on the CPU).
+\end{description}

@@ -1,4 +1,4 @@
-\documentclass{report}
+\documentclass[notitlepage]{report}
 \usepackage[parfill]{parskip} % Replaces \setlength{\parindent}{0pt}
 \usepackage{hyperref} % For clickable links and bookmarks
 \usepackage{bookmark}
@@ -12,7 +12,7 @@
 \usepackage{xcolor}
 \usepackage{algorithm}
 \usepackage{algorithmic}
-\definecolor{chaptergreen}{HTML}{1B8110}
+\definecolor{chaptergreen}{HTML}{00CED1}
 
 \makeatletter
 \def\chapter{\@ifstar\@schapter\@chapter}
@@ -31,7 +31,7 @@
 
 
 \input{preamble}
-\title{15-288 Ml in a Nutshell}
+\title{\textcolor{chaptergreen}{15-288 Ml in a Nutshell}}
 \date{First Edition}
 \author{Mohamed Waiel Shikfa}
 
@@ -44,11 +44,16 @@ what the author considers important. As always, the definition of important is
 highly subjective so the author might have omitted something that was
 important to another person, or included something that is trivial to another.
 
+Note: The image chapter contain all the covered content but the order is a bit different than the one in the notebook (will fix it when i have time).
 
 Good luck,
 
 MWS
 
-\input{chapters/cellular_automata}
+\clearpage
+
+\input{chapters/img_data1}
+\input{chapters/img_data2}
+\input{chapters/img_data3}
 
 \end{document}

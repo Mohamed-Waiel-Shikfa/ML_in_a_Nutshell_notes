@@ -1,0 +1,15 @@
+\chapter*{Feature Engineering for Images (Part 3)}
+\addcontentsline{toc}{chapter}{Feature Engineering for Images (Part 3)}
+
+\section*{Combining Filters: Unsharp Masking}
+
+Filters are linear operations, which means they possess the property of superposition and can be algebraically combined. A classic example is the \textbf{Sharpening Filter}, which can be derived from a combination of the original image and a smoothing filter.
+
+This process is commonly known as \textbf{Unsharp Masking}. It can be broken down into two logical steps:
+
+\begin{enumerate}
+    \item \textbf{Extract Details (High-Pass):} Take a smoothed (blurred) version of the image and subtract it from the original image. This removes the low-frequency information (smooth gradients, general color) and leaves only the high-frequency *details* (edges and noise).
+    $$ I_{details} = I_{original} - I_{smoothed} $$
+    \item \textbf{Enhance Image:} Add these extracted details back to the original image, scaled by a factor $\alpha$, to emphasize the edges.
+    $$ I_{sharp} = I_{original} + \alpha \cdot I_{details} $$
+\end{enumerate}
