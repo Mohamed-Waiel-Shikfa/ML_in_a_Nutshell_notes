@@ -3,103 +3,246 @@
 
 \section*{The Optimization Problem}
 
-Once a model hypothesis $f_{\mathbf{w}}(\xx)$ and a loss function $\ell(\hat{y}, y)$ are defined, the machine learning task reduces to an optimization problem: Empirical Risk Minimization (ERM). Our goal is to find the optimal parameter vector $\mathbf{w}^*$ that minimizes the average loss over the training set:
-$$\mathbf{w}^* = \arg\min_{\mathbf{w}} L(\mathbf{w}) = \arg\min_{\mathbf{w}} \frac{1}{N} \sum_{i=1}^N \ell\left(f_{\mathbf{w}}(\xx^{(i)}), y^{(i)}\right)$$
+Once a model hypothesis $f_{\mathbf{w}}(\xx)$ and a loss function $\ell(\hat{y}, y)$ are chosen, the machine learning task reduces to \textbf{Empirical Risk Minimization (ERM)}: find the parameter vector $\mathbf{w}^*$ that minimizes average loss over the training set:
+$$\mathbf{w}^* = \arg\min_{\mathbf{w}} L(\mathbf{w}) = \arg\min_{\mathbf{w}} \frac{1}{N} \sum_{i=1}^N \ell\bigl(f_{\mathbf{w}}(\xx^{(i)}),\; y^{(i)}\bigr)$$
 
-While some linear models (like Ordinary Least Squares) have a closed-form analytical solution by setting $\nabla_{\mathbf{w}} L(\mathbf{w}) = \mathbf{0}$, most complex models (such as logistic regression and neural networks) result in loss functions that cannot be solved analytically. Thus, we must rely on iterative numerical optimization.
+Some linear models (e.g., OLS) admit a closed-form solution via $\nabla_{\mathbf{w}} L = \mathbf{0}$. Most models---logistic regression, neural networks, SVMs with kernels---yield loss surfaces with no analytical solution, requiring \textbf{iterative numerical optimization}.
 
 \section*{Gradient Descent Fundamentals}
 
 \begin{definition}[Gradient Descent (GD)]
-Gradient Descent is an iterative optimization algorithm for finding a local minimum of a differentiable function. At each step, it calculates the gradient $\nabla_{\mathbf{w}} L(\mathbf{w})$ (the vector of partial derivatives) at the current point $\mathbf{w}^{(t)}$ and takes a step in the exact opposite direction, as the negative gradient points towards the steepest descent.
+Gradient Descent is an iterative first-order optimization algorithm. At each step it evaluates the gradient $\nabla_{\mathbf{w}} L(\mathbf{w})$ at the current point and moves in the direction of steepest descent.
 \end{definition}
 
-The fundamental update rule at iteration $t$ is:
-$$\mathbf{w}^{(t+1)} = \mathbf{w}^{(t)} - \eta \nabla_{\mathbf{w}} L(\mathbf{w}^{(t)})$$
+The update rule at iteration $t$:
+$$\mathbf{w}^{(t+1)} = \mathbf{w}^{(t)} - \eta \,\nabla_{\mathbf{w}} L(\mathbf{w}^{(t)})$$
 
-\begin{description}
-    \item[The Learning Rate ($\eta$):] Also called the step size, $\eta$ determines how far the algorithm moves along the negative gradient.
-    \begin{itemize}
-        \item If $\eta$ is \textbf{too small}, convergence will be painstakingly slow, risking getting trapped in sub-optimal regions.
-        \item If $\eta$ is \textbf{too large}, the updates can overshoot the minimum, leading to oscillation or complete divergence.
-    \end{itemize}
-\end{description}
+Below is a from-scratch implementation on the convex quadratic $f(x_1,x_2)=\tfrac{1}{2}x_1^2 + \tfrac{5}{2}x_2^2$, whose gradient is $\nabla f = (x_1,\; 5x_2)^T$ and global minimum is at the origin:
 
-\begin{remark}[Convexity vs. Non-Convexity]
-If the loss surface $L(\mathbf{w})$ is \textbf{convex} (bowl-shaped, like in Linear Regression or Logistic Regression), GD is guaranteed to eventually converge to the single global minimum. If the surface is \textbf{non-convex} (like in deep neural networks), the algorithm may get stuck in \textit{local minima}, \textit{saddle points}, or flat \textit{plateaus}.
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+
+# Define a simple convex quadratic and its gradient
+def f(x):
+    return 0.5 * x[0]**2 + 2.5 * x[1]**2
+
+def grad_f(x):
+    return np.array([x[0], 5 * x[1]])
+
+# Gradient descent from scratch
+def gradient_descent(grad, x0, lr=0.1, n_iters=50, tol=1e-6):
+    x = x0.copy()
+    history = [x.copy()]
+    for _ in range(n_iters):
+        g = grad(x)
+        x = x - lr * g               # GD update rule
+        history.append(x.copy())
+        if np.linalg.norm(g) < tol:   # stop if gradient ~0
+            break
+    return x, history
+
+x_opt, path = gradient_descent(grad_f, np.array([2.0, 0.4]))
+print(f"Minimum at: {x_opt}")        # -> ~[0, 0]
+\end{lstlisting}
+
+\subsection*{The Learning Rate ($\eta$)}
+
+The \textbf{learning rate} (step size) $\eta$ controls how far each update moves along the negative gradient. Even with fixed $\eta$, the actual step length in parameter space is $\|\mathbf{w}^{(t+1)} - \mathbf{w}^{(t)}\| = \eta \cdot \|\nabla L(\mathbf{w}^{(t)})\|$, so steps shrink naturally near a minimum where gradients vanish.
+
+\begin{itemize}
+    \item \textbf{Too small} $\eta$: convergence is painfully slow; the optimizer may stall in sub-optimal regions.
+    \item \textbf{Too large} $\eta$: updates overshoot the minimum, causing oscillation or divergence.
+\end{itemize}
+
+The following snippet demonstrates both failure modes on the same quadratic:
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+
+def grad_f(x):
+    return np.array([x[0], 5 * x[1]])
+
+x0 = np.array([2.0, 0.4])
+
+# Too-small learning rate: barely moves in 200 steps
+x = x0.copy()
+for _ in range(200):
+    x = x - 0.001 * grad_f(x)
+print(f"lr=0.001 after 200 steps: {x}")   # still far from [0,0]
+
+# Too-large learning rate: diverges!
+x = x0.copy()
+for _ in range(10):
+    x = x - 0.5 * grad_f(x)
+print(f"lr=0.5  after 10 steps:  {x}")    # explodes
+
+# Good learning rate: converges smoothly
+x = x0.copy()
+for _ in range(50):
+    x = x - 0.1 * grad_f(x)
+print(f"lr=0.1  after 50 steps:  {x}")    # ~[0, 0]
+\end{lstlisting}
+
+\begin{remark}[Convexity vs.\ Non-Convexity]
+If $L(\mathbf{w})$ is \textbf{convex} (e.g., linear/logistic regression losses), GD converges to the unique global minimum. If $L$ is \textbf{non-convex} (e.g., neural networks), the algorithm may get trapped in \textit{local minima}, \textit{saddle points}, or flat \textit{plateaus}. In practice, SGD noise and adaptive methods help escape shallow traps.
 \end{remark}
 
-\section*{Data-Sampling Variants of Gradient Descent}
+\section*{Data-Sampling Variants}
 
-Computing the gradient requires summing the loss derivatives over the training data. Depending on how much data we use per step, we define three main variants of GD:
+Computing $\nabla L$ requires summing over training examples. How many examples per update defines three variants:
 
 \begin{description}
-    \item[Batch Gradient Descent (BGD):] Computes the gradient using the \textbf{entire} training dataset ($N$ samples) for a single update.
+    \item[Batch Gradient Descent (BGD):] Uses the \textbf{entire} dataset ($N$ samples) per update.
     \begin{itemize}
-        \item \textit{Pros:} Provides a highly accurate estimate of the gradient; guarantees stable convergence.
-        \item \textit{Cons:} Computationally expensive and memory-intensive. Impractical for massive datasets as one tiny step requires a full pass over all data.
+        \item \textit{Pros:} Accurate gradient estimate; stable, predictable convergence.
+        \item \textit{Cons:} Computationally expensive per step; impractical for large $N$.
     \end{itemize}
 
-    \item[Stochastic Gradient Descent (SGD):] Computes the gradient using only \textbf{one randomly selected} training example per update.
+    \item[Stochastic Gradient Descent (SGD):] Uses \textbf{one randomly selected} example per update.
     \begin{itemize}
-        \item \textit{Pros:} Extremely fast per iteration; low memory requirement. The inherent noise from single samples can help the optimizer "bounce" out of shallow local minima.
-        \item \textit{Cons:} High variance in updates causes the loss to fluctuate wildly, preventing it from settling smoothly at the exact minimum.
+        \item \textit{Pros:} Extremely fast per iteration; low memory. The noise can help escape shallow local minima.
+        \item \textit{Cons:} High variance causes the loss to fluctuate wildly; may never settle precisely at the minimum.
     \end{itemize}
 
-    \item[Mini-Batch Gradient Descent:] The standard compromise. It computes the gradient on a small, random \textbf{subset} (a mini-batch) of $B$ training examples (e.g., $B = 32, 64, 128$).
+    \item[Mini-Batch Gradient Descent:] The standard compromise---uses a random subset of $B$ examples (e.g., $B \in \{32, 64, 128\}$).
     \begin{itemize}
-        \item \textit{Pros:} Significantly reduces the variance of the parameter updates compared to pure SGD, leading to more stable convergence. Crucially, it exploits hardware optimizations (like GPU matrix vectorization) making it much faster than BGD.
+        \item \textit{Pros:} Reduces update variance vs.\ SGD; exploits GPU vectorization, making it faster than BGD in wall-clock time.
     \end{itemize}
 \end{description}
+
+\begin{remark}[Terminology]
+In modern deep learning, ``SGD'' almost always refers to mini-batch GD. Pure single-sample SGD is rarely used in practice.
+\end{remark}
+
+The conceptual difference in code: BGD computes gradients over all $N$ rows; SGD over 1; mini-batch over a random slice of size $B$:
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+
+# Assume X (N x d), y (N,), w (d,) for linear regression
+# MSE gradient: (1/m) * X^T (Xw - y)
+
+def grad_batch(X, y, w):
+    """Full-batch gradient (all N samples)."""
+    r = X @ w - y
+    return X.T @ r / len(y)
+
+def grad_sgd(X, y, w):
+    """Stochastic gradient (1 random sample)."""
+    i = np.random.randint(len(y))
+    r = X[i] @ w - y[i]
+    return X[i] * r               # single-sample gradient
+
+def grad_minibatch(X, y, w, B=32):
+    """Mini-batch gradient (B random samples)."""
+    idx = np.random.choice(len(y), B, replace=False)
+    r = X[idx] @ w - y[idx]
+    return X[idx].T @ r / B
+\end{lstlisting}
 
 \section*{Advanced Gradient Methods}
 
-Standard SGD/Mini-batch GD can struggle with pathological curvature (e.g., steep ravines) and can be slow. Advanced optimizers manipulate the update rule to accelerate and stabilize convergence.
+Standard GD can struggle with pathological curvature (e.g., long narrow ravines) and sensitivity to learning rate choice. Advanced optimizers modify the update rule to accelerate and stabilize convergence.
 
 \subsection*{Momentum-Based Methods}
 
 \begin{definition}[Momentum]
-Instead of depending strictly on the current gradient, Momentum accumulates an exponentially decaying moving average of past gradients to determine the update direction. It acts like a ball rolling down a hill, gaining speed in consistent directions and dampening oscillations in erratic directions.
+Instead of relying solely on the current gradient, Momentum accumulates an exponentially decaying moving average of past gradients. It acts like a ball rolling downhill---gaining speed in consistent directions and dampening oscillations in erratic ones.
 \end{definition}
 
 \begin{description}
-    \item[Standard Momentum:] Computes a "velocity" vector $v_t = \gamma v_{t-1} + \eta \nabla_{\mathbf{w}} L(\mathbf{w})$. The weights are updated as $\mathbf{w} \leftarrow \mathbf{w} - v_t$.
-    \item[Nesterov Accelerated Gradient (NAG):] A "look-ahead" version of momentum. Instead of evaluating the gradient at the current position $\mathbf{w}$, it calculates the gradient at the \textit{predicted} future position $\mathbf{w} - \gamma v_{t-1}$. This anticipatory step prevents the algorithm from overshooting the minimum.
+    \item[Standard Momentum:] Maintains a velocity vector:
+    $$v_t = \gamma \, v_{t-1} + \eta \,\nabla_{\mathbf{w}} L(\mathbf{w}^{(t)})$$
+    $$\mathbf{w}^{(t+1)} = \mathbf{w}^{(t)} - v_t$$
+    The decay factor $\gamma \in [0,1)$ (typically $0.9$) controls how much past gradients influence the current update.
+
+    \item[Nesterov Accelerated Gradient (NAG):] A ``look-ahead'' variant. Instead of computing the gradient at $\mathbf{w}^{(t)}$, NAG evaluates it at the predicted future position $\mathbf{w}^{(t)} - \gamma \, v_{t-1}$. This anticipatory correction reduces overshooting, especially in regions of steep curvature.
 \end{description}
 
 \subsection*{Adaptive Learning Rate Methods}
 
-Instead of using a single global learning rate $\eta$ for all parameters, adaptive methods dynamically tune the learning rate for each individual parameter $w_j$.
+Rather than one global $\eta$ for all parameters, adaptive methods tune the effective learning rate per parameter $w_j$.
 
 \begin{description}
-    \item[AdaGrad (Adaptive Gradient):] Scales the learning rate for each parameter inversely proportional to the square root of the sum of all its historical squared gradients. It performs larger updates for infrequent features and smaller updates for frequent features. \textit{Drawback:} The accumulated sum continuously grows, eventually causing the learning rate to shrink to zero, stopping training prematurely.
-    \item[RMSprop:] Fixes AdaGrad's diminishing learning rate by using an exponentially decaying average of squared gradients, rather than a cumulative sum.
+    \item[AdaGrad:] Scales each parameter's learning rate inversely by the square root of the cumulative sum of its historical squared gradients. Larger updates for infrequent features, smaller for frequent ones. \textit{Drawback:} the accumulated sum grows monotonically, eventually shrinking the learning rate to zero and halting training.
+
+    \item[RMSprop:] Fixes AdaGrad's decay problem by replacing the cumulative sum with an \textbf{exponentially decaying average} of squared gradients, keeping the effective learning rate from vanishing.
 \end{description}
 
 \subsection*{Adam (Adaptive Moment Estimation)}
 
 \begin{definition}[Adam Optimizer]
-Adam is currently the most popular default optimizer in deep learning. It combines the benefits of both \textbf{Momentum} (smoothing via the 1st statistical moment) and \textbf{RMSprop} (adaptive scaling via the 2nd statistical moment).
+Adam is the most widely used default optimizer in deep learning. It combines \textbf{Momentum} (1st moment---gradient direction) with \textbf{RMSprop} (2nd moment---gradient magnitude scaling).
 \end{definition}
 
-The Adam update rule consists of 4 formal steps at iteration $t$:
+The Adam update at iteration $t$ consists of four steps:
+
 \begin{enumerate}
-    \item \textbf{Momentum (1st Moment):} Compute the exponentially weighted average of past gradients.
-    $$m_t = \beta_1 m_{t-1} + (1 - \beta_1) \nabla f(\mathbf{w}_{t-1})$$
-    This smooths updates and reduces oscillations.
+    \item \textbf{1st Moment (Momentum):} Exponentially weighted average of past gradients.
+    $$m_t = \beta_1 \, m_{t-1} + (1 - \beta_1)\,\nabla f(\mathbf{w}_{t-1})$$
 
-    \item \textbf{Adaptive Scaling (2nd Moment):} Compute the exponentially weighted average of past \textit{squared} gradients.
-    $$v_t = \beta_2 v_{t-1} + (1 - \beta_2) (\nabla f(\mathbf{w}_{t-1}))^2$$
-    This prevents overly large updates when gradients are huge, and ensures reasonable updates in noisy areas.
+    \item \textbf{2nd Moment (Adaptive Scaling):} Exponentially weighted average of past squared gradients.
+    $$v_t = \beta_2 \, v_{t-1} + (1 - \beta_2)\,\bigl(\nabla f(\mathbf{w}_{t-1})\bigr)^2$$
 
-    \item \textbf{Bias Correction:} Because $m_t$ and $v_t$ are initialized to zero, they are biased toward zero early in training. We correct them:
-    $$\hat{m}_t = \frac{m_t}{1 - \beta_1^t} \quad \text{and} \quad \hat{v}_t = \frac{v_t}{1 - \beta_2^t}$$
+    \item \textbf{Bias Correction:} Since $m_0 = v_0 = 0$, early estimates are biased toward zero. Correct:
+    $$\hat{m}_t = \frac{m_t}{1 - \beta_1^t} \qquad \hat{v}_t = \frac{v_t}{1 - \beta_2^t}$$
 
-    \item \textbf{Parameter Update Rule:}
-    $$\mathbf{w}_t = \mathbf{w}_{t-1} - \frac{\eta}{\sqrt{\hat{v}_t} + \epsilon} \hat{m}_t$$
-    \textit{(Where $\epsilon$ is a tiny constant to prevent division by zero).}
+    \item \textbf{Parameter Update:}
+    $$\mathbf{w}_t = \mathbf{w}_{t-1} - \frac{\eta}{\sqrt{\hat{v}_t} + \epsilon}\;\hat{m}_t$$
+    where $\epsilon \approx 10^{-8}$ prevents division by zero.
 \end{enumerate}
 
 \begin{remark}[Why Adam Works]
-The effective learning rate in Adam is heavily adaptive. If the gradient magnitude is consistently large, the step size safely decreases. If gradients are small (e.g., in a plateau), the step size increases to prevent stalling. Combined with Momentum's directional consistency, Adam achieves rapid and robust convergence in non-convex landscapes.
+Adam's effective step size is fully adaptive. Large gradient magnitudes shrink the step (preventing divergence); small gradients in plateaus enlarge it (preventing stalling). Combined with momentum's directional smoothing, Adam achieves robust convergence across diverse non-convex landscapes. Default hyperparameters ($\beta_1 = 0.9$, $\beta_2 = 0.999$, $\eta = 10^{-3}$) work well in most settings.
 \end{remark}
+
+\section*{Gradient Methods in Practice with \texttt{scikit-learn}}
+
+\texttt{scikit-learn} exposes SGD-based linear models via \texttt{SGDClassifier} and \texttt{SGDRegressor}. These use mini-batch SGD under the hood and accept key hyperparameters: learning rate schedule, regularization, and number of passes over the data.
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.linear_model import SGDRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import make_regression
+
+# Generate synthetic regression data
+X, y = make_regression(n_samples=500, n_features=5, noise=10,
+                       random_state=42)
+
+# SGD is sensitive to feature scale -- always standardize
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# SGDRegressor uses squared loss by default (= linear regression)
+sgd_reg = SGDRegressor(
+    loss='squared_error',
+    learning_rate='invscaling',   # eta = eta0 / t^power_t
+    eta0=0.01,                    # initial learning rate
+    max_iter=1000,
+    tol=1e-4,
+    random_state=42
+)
+sgd_reg.fit(X_scaled, y)
+print(f"R^2 = {sgd_reg.score(X_scaled, y):.4f}")
+print(f"Learned weights: {sgd_reg.coef_}")
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.linear_model import SGDClassifier
+from sklearn.datasets import make_classification
+from sklearn.preprocessing import StandardScaler
+
+X, y = make_classification(n_samples=1000, n_features=10,
+                           random_state=42)
+X = StandardScaler().fit_transform(X)
+
+# SGDClassifier with log_loss = logistic regression via SGD
+clf = SGDClassifier(
+    loss='log_loss',              # logistic regression
+    learning_rate='optimal',      # auto-tuned schedule
+    max_iter=1000,
+    random_state=42
+)
+clf.fit(X, y)
+print(f"Accuracy: {clf.score(X, y):.4f}")
+\end{lstlisting}

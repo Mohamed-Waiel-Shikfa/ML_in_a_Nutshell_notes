@@ -3,81 +3,220 @@
 
 \section*{Image Binarization and Thresholding}
 
-Before extracting complex structures, it is often useful to separate the foreground (objects of interest) from the background. We achieve this by converting a grayscale image into a binary image (0s and 1s).
+Many vision tasks require separating foreground from background before extracting higher-level structure. \textbf{Binarization} converts a grayscale image into a binary image by assigning each pixel to one of two classes.
 
-\subsection*{1. Global Thresholding}
-A single, hard cutoff value $T$ is applied to the entire image.
+\subsection*{Global Thresholding}
+
+A single threshold $T$ is applied uniformly across the entire image:
 $$
-\text{Pixel}_{new} =
+\text{Pixel}_{\text{out}} =
 \begin{cases}
-255 & \text{if } \text{Pixel}_{old} > T \\
+255 & \text{if } \text{Pixel}_{\text{in}} > T \\
 0 & \text{otherwise}
 \end{cases}
 $$
+
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+import numpy as np
+
+img = cv2.imread('page.png', cv2.IMREAD_GRAYSCALE)
+
+# Global threshold at T=127: pixels > 127 become 255, else 0
+ret, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+\end{lstlisting}
+
 \begin{remark}
-    Global thresholding fails miserably if the image has a lighting gradient (e.g., uneven shadows across a document), as one side will turn entirely black and the other entirely white.
+Global thresholding fails when the image has a lighting gradient (e.g., uneven shadows across a scanned document)---one region turns entirely white while the other turns entirely black.
 \end{remark}
 
-\subsection*{2. Adaptive (Local) Thresholding}
-Instead of one global $T$, a local threshold is calculated independently for small regions (e.g., an $11 \times 11$ pixel block) of the image.
-\begin{itemize}
-    \item \textbf{Mean Thresholding:} The threshold is the mean of the neighborhood area.
-    \item \textbf{Gaussian Thresholding:} The threshold is the weighted sum of neighborhood values, where weights are a Gaussian window.
-\end{itemize}
-This naturally handles varying illumination across the image.
+\subsection*{Adaptive (Local) Thresholding}
 
-\subsection*{3. Otsu's Binarization}
-Otsu's method is an algorithm that automatically discovers the optimal global threshold $T$. It assumes the image contains two classes of pixels (foreground and background) forming a bimodal histogram. It iterates through all possible threshold values to find the one that minimizes \textit{intra-class variance} (or equivalently, maximizes \textit{inter-class variance}).
+Instead of a single global $T$, a \textbf{local threshold} is computed independently for each pixel based on a neighborhood window (e.g., an $11 \times 11$ block):
 
-\section*{Local Operations \& Corner Detection}
+\begin{description}
+    \item[Mean Adaptive:] Threshold = mean intensity of the local neighborhood.
+    \item[Gaussian Adaptive:] Threshold = Gaussian-weighted sum of neighborhood intensities, giving more influence to nearby pixels.
+\end{description}
 
-To track objects across different images, we must find distinct, repeatable points.
-\begin{itemize}
-    \item \textbf{Flat Regions:} No gradient in any direction. Useless for tracking.
-    \item \textbf{Edges:} Gradient in one direction. Good, but suffers from the "aperture problem" (we cannot determine where exactly we are along the edge).
-    \item \textbf{Corners:} High gradients in \textit{all} directions. Highly distinct and excellent for tracking.
-\end{itemize}
+This naturally handles spatially varying illumination.
+
+\begin{lstlisting}[style=pythonstyle]
+# Adaptive mean thresholding (blockSize=11, C=2 subtracted from mean)
+adapt_mean = cv2.adaptiveThreshold(
+    img, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+    cv2.THRESH_BINARY, blockSize=11, C=2
+)
+
+# Adaptive Gaussian thresholding
+adapt_gauss = cv2.adaptiveThreshold(
+    img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+    cv2.THRESH_BINARY, blockSize=11, C=2
+)
+\end{lstlisting}
+
+\subsection*{Otsu's Binarization}
+
+\textbf{Otsu's method} automatically discovers the optimal global threshold $T^*$ without manual tuning. It assumes the pixel histogram is \textbf{bimodal} (two peaks corresponding to foreground and background) and finds the $T$ that minimizes \textit{intra-class variance}---equivalently, maximizes \textit{inter-class variance}:
+$$
+T^* = \arg\min_T \;\bigl[\, \omega_0(T)\,\sigma_0^2(T) + \omega_1(T)\,\sigma_1^2(T) \,\bigr]
+$$
+where $\omega_k(T)$ and $\sigma_k^2(T)$ are the weight (pixel fraction) and variance of class $k$ at threshold $T$.
+
+\begin{lstlisting}[style=pythonstyle]
+# Otsu's method: pass 0 as threshold, OpenCV finds optimal T*
+ret, otsu = cv2.threshold(
+    img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+)
+print(f"Otsu's optimal threshold: {ret}")  # e.g., 142.0
+\end{lstlisting}
+
+\section*{Corner Detection}
+
+To track objects across frames or match features between images, we need to identify points that are \textbf{distinct} and \textbf{repeatable}. Not all image regions are equally useful:
+
+\begin{description}
+    \item[Flat Regions:] No intensity gradient in any direction. Useless for tracking---shifting a window produces no measurable change.
+    \item[Edges:] Strong gradient in one direction only. Subject to the \textbf{aperture problem}: we cannot determine position along the edge.
+    \item[Corners:] High gradients in \textit{multiple} directions. Highly distinct and ideal as keypoints.
+\end{description}
 
 \subsection*{Harris Corner Detector}
 
-The Harris Corner Detector formally identifies corners by analyzing the change in intensity resulting from shifting a local window by a small amount $(u, v)$.
+The Harris detector identifies corners by analyzing how the \textbf{sum of squared differences (SSD)} changes when a local window is shifted by $(u, v)$:
+$$
+E(u,v) = \sum_{(x,y) \in W} \bigl[ I(x+u, y+v) - I(x,y) \bigr]^2
+$$
 
-The core of the algorithm relies on the \textbf{Structure Tensor} (or Second Moment Matrix), denoted $M$, which is computed from the image derivatives $I_x$ and $I_y$ over a local window $W$:
-$$M = \sum_{(x,y) \in W} \begin{bmatrix} I_x^2 & I_x I_y \\ I_x I_y & I_y^2 \end{bmatrix}$$
+A first-order Taylor expansion yields the approximation $E(u,v) \approx \begin{bmatrix} u & v \end{bmatrix} M \begin{bmatrix} u \\ v \end{bmatrix}$, where $M$ is the \textbf{Structure Tensor} (Second Moment Matrix) computed from image derivatives $I_x, I_y$ over window $W$:
+$$
+M = \sum_{(x,y) \in W} \begin{bmatrix} I_x^2 & I_x I_y \\ I_x I_y & I_y^2 \end{bmatrix}
+$$
 
-By analyzing the eigenvalues ($\lambda_1, \lambda_2$) of this matrix, we categorize the region:
+The eigenvalues $\lambda_1, \lambda_2$ of $M$ encode the local gradient structure:
+
 \begin{description}
-    \item[Corner:] Both $\lambda_1$ and $\lambda_2$ are large. Shifting the window in any direction yields a large change.
-    \item[Edge:] One eigenvalue is large, the other is small.
-    \item[Flat:] Both eigenvalues are small.
+    \item[Corner ($\lambda_1$ large, $\lambda_2$ large):] Intensity changes significantly in all shift directions.
+    \item[Edge ($\lambda_1 \gg \lambda_2$ or vice versa):] Change in one direction only.
+    \item[Flat ($\lambda_1 \approx \lambda_2 \approx 0$):] No significant change.
 \end{description}
+
+\begin{remark}
+Computing eigenvalues directly is expensive. Harris instead uses the \textbf{corner response function}:
+$$R = \det(M) - k\,(\text{trace}(M))^2 = \lambda_1 \lambda_2 - k(\lambda_1 + \lambda_2)^2$$
+where $k \in [0.04, 0.06]$. A large positive $R$ indicates a corner; $R < 0$ indicates an edge; $|R|$ small indicates a flat region.
+\end{remark}
+
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+import numpy as np
+
+img = cv2.imread('chessboard.png')
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32)
+
+# Harris corner detection (blockSize=2, ksize=3, k=0.04)
+harris = cv2.cornerHarris(gray, blockSize=2, ksize=3, k=0.04)
+
+# Dilate to enlarge corner markers for visibility
+harris = cv2.dilate(harris, None)
+
+# Mark corners in red where response > 1% of max
+img[harris > 0.01 * harris.max()] = [0, 0, 255]
+\end{lstlisting}
 
 \section*{The Feature Matching Pipeline}
 
-Once we find distinct points, how do we match them between two different images (e.g., for panorama stitching or 3D reconstruction)? The standard classical pipeline consists of three steps:
+Given keypoints in two images, the classical pipeline for establishing correspondences (e.g., for panorama stitching, 3D reconstruction, or object recognition) consists of three stages:
 
 \begin{enumerate}
-    \item \textbf{Detection (Keypoints):} Identify repeatable interest points (like Harris corners or blobs) in the image.
-    \item \textbf{Description (Descriptors):} Extract a vector that mathematically describes the neighborhood around the keypoint. This descriptor must be robust to lighting and rotation.
-    \item \textbf{Matching:} Compute the distance (e.g., Euclidean or Hamming distance) between descriptors in Image A and Image B to find corresponding pairs.
+    \item \textbf{Detection:} Identify repeatable interest points (corners, blobs) in each image.
+    \item \textbf{Description:} For each keypoint, compute a descriptor vector encoding the local neighborhood. The descriptor must be robust to rotation, illumination changes, and ideally scale.
+    \item \textbf{Matching:} Compare descriptors between images using a distance metric (Euclidean for continuous descriptors, Hamming for binary) and select the closest pairs as correspondences.
 \end{enumerate}
 
 \section*{Advanced Feature Descriptors}
 
-While Harris corners are invariant to rotation, they are \textbf{not scale-invariant} (if you zoom in closely on a corner, it looks like an edge!). State-of-the-art classical computer vision utilizes descriptors that overcome this.
+Harris corners are rotation-invariant but \textbf{not scale-invariant}: zoom into a corner far enough and it becomes an edge. Modern classical descriptors address this limitation.
 
 \subsection*{SIFT (Scale-Invariant Feature Transform)}
-SIFT is arguably the most famous feature descriptor. It is highly robust but computationally heavy.
+
+SIFT achieves invariance to scale, rotation, and moderate affine distortion through a multi-stage pipeline:
+
 \begin{description}
-    \item[Detection:] Uses the \textit{Difference of Gaussians (DoG)} at multiple scales to find blobs (keypoints) that exist consistently across different zoom levels.
-    \item[Orientation Assignment:] Computes the dominant gradient direction around the keypoint and aligns the descriptor to it, ensuring true rotation invariance.
-    \item[Description:] Creates a $4 \times 4$ grid around the keypoint. In each of the 16 cells, it computes a Histogram of Oriented Gradients (HOG) with 8 bins. This results in a highly descriptive $16 \times 8 = 128$-dimensional continuous feature vector.
+    \item[Detection (DoG):] Constructs a \textbf{scale space} by convolving the image with Gaussians at increasing $\sigma$. The \textbf{Difference of Gaussians (DoG)} $D(x,y,\sigma) = G(x,y,k\sigma) - G(x,y,\sigma)$ approximates the scale-normalized Laplacian. Keypoints are local extrema in $(x, y, \sigma)$ space---points that persist across scales.
+    \item[Orientation Assignment:] For each keypoint, a histogram of gradient orientations in its neighborhood determines the \textbf{dominant orientation}. All subsequent computations are relative to this orientation, ensuring rotation invariance.
+    \item[Descriptor:] A $16 \times 16$ patch around the keypoint is divided into a $4 \times 4$ grid of cells. Each cell contributes an 8-bin \textbf{Histogram of Oriented Gradients (HOG)}. Concatenation yields a $4 \times 4 \times 8 = \mathbf{128}$-dimensional continuous feature vector, normalized to unit length for illumination invariance.
 \end{description}
 
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+
+img = cv2.imread('building.jpg')
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Create SIFT detector and compute keypoints + descriptors
+sift = cv2.SIFT_create()
+keypoints, descriptors = sift.detectAndCompute(gray, None)
+# descriptors.shape = (N, 128) -- N keypoints, 128-dim each
+
+# Draw keypoints with orientation and scale
+output = cv2.drawKeypoints(
+    gray, keypoints, img,
+    flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
+)
+\end{lstlisting}
+
 \subsection*{ORB (Oriented FAST and Rotated BRIEF)}
-ORB was developed as an efficient, fast, and free alternative to SIFT, making it heavily utilized in real-time robotics and mobile applications.
+
+ORB was designed as an efficient, royalty-free alternative to SIFT, widely used in real-time robotics and mobile applications.
+
 \begin{description}
-    \item[FAST Detection:] Rapidly finds keypoints by comparing the intensity of a central pixel to a circular ring of 16 surrounding pixels. If contiguous pixels are significantly brighter or darker, it's a corner.
-    \item[BRIEF Description:] Instead of computing continuous gradients, BRIEF creates a \textit{binary descriptor} (a string of 0s and 1s) by doing simple pairwise intensity comparisons between random pixels in the neighborhood.
-    \item[Matching:] Because descriptors are binary, matching is extremely fast using the Hamming distance (computed via a fast XOR operation on the CPU).
+    \item[FAST Detection:] Identifies keypoints by comparing a center pixel's intensity to a ring of 16 surrounding pixels. If $N$ contiguous pixels on the ring are all significantly brighter (or all darker) than the center, it is classified as a corner. FAST is extremely efficient but lacks orientation information.
+    \item[Orientation (``Oriented''):] ORB adds rotation invariance by computing the \textbf{intensity centroid} of the patch and defining orientation as the direction from the corner to the centroid.
+    \item[BRIEF Description:] Generates a \textbf{binary descriptor} (256 bits by default) by performing pairwise intensity comparisons at pre-selected pixel locations in the neighborhood. Each comparison yields one bit: 1 if $I(p_1) > I(p_2)$, else 0.
+    \item[Matching with Hamming Distance:] Because descriptors are binary strings, matching reduces to XOR followed by popcount---executed in a single CPU instruction. This is orders of magnitude faster than Euclidean distance on 128-dim floats.
 \end{description}
+
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+
+img = cv2.imread('building.jpg', cv2.IMREAD_GRAYSCALE)
+
+# Create ORB detector (default: 500 keypoints, 256-bit descriptors)
+orb = cv2.ORB_create(nfeatures=1000)
+keypoints, descriptors = orb.detectAndCompute(img, None)
+# descriptors.shape = (N, 32) -- 32 bytes = 256 bits per keypoint
+\end{lstlisting}
+
+\subsection*{Feature Matching in Practice}
+
+Given descriptors from two images, a \textbf{Brute-Force Matcher} compares every descriptor in image A against every descriptor in image B:
+
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+
+img1 = cv2.imread('scene1.jpg', cv2.IMREAD_GRAYSCALE)
+img2 = cv2.imread('scene2.jpg', cv2.IMREAD_GRAYSCALE)
+
+# --- SIFT matching (L2 norm on 128-dim float vectors) ---
+sift = cv2.SIFT_create()
+kp1, des1 = sift.detectAndCompute(img1, None)
+kp2, des2 = sift.detectAndCompute(img2, None)
+
+bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)  # L2 for SIFT
+matches = bf.match(des1, des2)
+matches = sorted(matches, key=lambda m: m.distance)  # best first
+
+# --- ORB matching (Hamming distance on binary descriptors) ---
+orb = cv2.ORB_create(nfeatures=1000)
+kp1, des1 = orb.detectAndCompute(img1, None)
+kp2, des2 = orb.detectAndCompute(img2, None)
+
+bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)  # Hamming for ORB
+matches = bf.match(des1, des2)
+matches = sorted(matches, key=lambda m: m.distance)
+\end{lstlisting}
+
+\begin{remark}[SIFT vs.\ ORB Trade-off]
+SIFT produces highly discriminative 128-dim float descriptors matched with $L_2$ distance---accurate but slow ($O(128n^2)$ for brute-force). ORB produces compact 256-bit binary descriptors matched with Hamming distance via hardware XOR---roughly 10--100$\times$ faster. For real-time systems (SLAM, AR), ORB is preferred; for offline tasks requiring maximum accuracy (3D reconstruction, archival matching), SIFT remains the gold standard among classical methods.
+\end{remark}

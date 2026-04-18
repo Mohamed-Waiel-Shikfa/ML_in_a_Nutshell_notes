@@ -1,0 +1,259 @@
+\chapter*{Correlations, Polynomial Features, and Types of Feature Data}
+\addcontentsline{toc}{chapter}{Correlations, Polynomial Features, and Types of Feature Data}
+
+Before a model sees a single training example, the quality of its features has already placed a ceiling on its performance.
+This chapter addresses three pillars of feature engineering: understanding \emph{what kind} of data each feature carries, detecting \emph{redundancy} via correlations, and expanding \emph{expressive power} through polynomial features.
+
+%% ============================================================
+\section*{Types of Feature Data}
+%% ============================================================
+
+Every column in a dataset belongs to one of two broad families: \textbf{numerical} or \textbf{categorical}. The distinction matters because most ML algorithms operate on real-valued vectors---categorical data must be converted before it can enter the pipeline.
+
+\subsection*{Numerical Features}
+
+\begin{description}
+    \item[Continuous:] Can take any real value within a range (possibly infinite). Examples: temperature, price, height, blood pressure. Measured on a ratio or interval scale.
+    \item[Discrete:] Take on countable values, typically non-negative integers. Examples: number of rooms, word count, customer visits. Often arise from counting processes.
+\end{description}
+
+Numerical features can be fed directly into linear models, distance-based methods, and neural networks (after appropriate scaling).
+
+\subsection*{Categorical Features}
+
+\begin{description}
+    \item[Nominal:] Categories with \emph{no intrinsic order}. Examples: color $\in \{\text{red, blue, green}\}$, country, blood type. Assigning integers (red$=0$, blue$=1$, green$=2$) is dangerous because it fabricates an ordering the data does not possess.
+    \item[Ordinal:] Categories with a \emph{natural ordering}, but non-uniform spacing. Examples: education level (HS $<$ BS $<$ MS $<$ PhD), satisfaction rating (low $<$ medium $<$ high). Integer encoding is permissible here because the ordering is meaningful.
+\end{description}
+
+\begin{remark}[Why the Distinction Matters]
+If a nominal feature like \texttt{color} is naively encoded as $\{0, 1, 2\}$, a linear model will interpret $\text{green} - \text{red} = 2 \cdot (\text{blue} - \text{red})$---a relationship that is pure artifact. Ordinal features tolerate integer encoding precisely because their ordering is real.
+\end{remark}
+
+%% ============================================================
+\section*{Encoding Categorical Features}
+%% ============================================================
+
+\subsection*{Label Encoding (Integer Mapping)}
+
+Map each category to a distinct integer: $\text{HS} \to 0,\ \text{BS} \to 1,\ \text{MS} \to 2,\ \text{PhD} \to 3$.
+
+\begin{itemize}
+    \item \textbf{Appropriate for ordinal data only}, where the integer ordering reflects reality.
+    \item For nominal data, this introduces a spurious metric structure.
+\end{itemize}
+
+\begin{lstlisting}[style=pythonstyle]
+import pandas as pd
+
+df = pd.DataFrame({'education': ['HS', 'BS', 'MS', 'PhD', 'BS']})
+# Ordinal encoding: map preserves the natural order
+order_map = {'HS': 0, 'BS': 1, 'MS': 2, 'PhD': 3}
+df['edu_encoded'] = df['education'].map(order_map)
+print(df)
+\end{lstlisting}
+
+\subsection*{One-Hot Encoding (Dummy Variables)}
+
+For \textbf{nominal} features, create $K$ binary indicator columns (one per category), where exactly one column is $1$ for each sample.
+
+For a feature \texttt{color} $\in \{\text{red, blue, green}\}$:
+$$\text{red} \to [1,0,0], \quad \text{blue} \to [0,1,0], \quad \text{green} \to [0,0,1]$$
+
+\begin{remark}[Dummy Variable Trap]
+If $K$ one-hot columns sum to $1$ for every sample, the columns are linearly dependent. When using models with an intercept (e.g., OLS), this causes \textbf{perfect multicollinearity}. The fix: drop one column, using $K-1$ indicators. The dropped category becomes the implicit \emph{reference level}.
+\end{remark}
+
+\begin{lstlisting}[style=pythonstyle]
+import pandas as pd
+
+df = pd.DataFrame({'color': ['red', 'blue', 'green', 'blue']})
+# One-hot encode, drop_first avoids the dummy variable trap
+dummies = pd.get_dummies(df['color'], drop_first=True, dtype=int)
+print(dummies)
+#    green  red
+# 0      0    1
+# 1      0    0    <- "blue" is the dropped reference
+# 2      1    0
+# 3      0    0
+\end{lstlisting}
+
+Equivalently, using scikit-learn (useful inside pipelines):
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.preprocessing import OneHotEncoder
+import numpy as np
+
+enc = OneHotEncoder(drop='first', sparse_output=False)
+X_cat = np.array([['red'], ['blue'], ['green'], ['blue']])
+X_enc = enc.fit_transform(X_cat)   # shape (4, 2)
+print(enc.categories_)             # [array(['blue','green','red'])]
+\end{lstlisting}
+
+\subsection*{Target (Mean) Encoding}
+
+Replace each category with the \emph{mean of the target variable} for that category. For a feature \texttt{city} predicting \texttt{price}: $\text{city}_k \to \bar{y}_k = \frac{1}{|D_k|}\sum_{i \in D_k} y^{(i)}$.
+
+\begin{itemize}
+    \item Produces a single numeric column regardless of cardinality---useful for high-cardinality features.
+    \item \textbf{Risk of data leakage:} the encoding uses target information. Must be computed on training folds only (never on test data) or use smoothing/regularization to avoid overfitting to rare categories.
+\end{itemize}
+
+%% ============================================================
+\section*{Correlation Analysis}
+%% ============================================================
+
+Correlations serve two purposes in feature engineering: (1)~identifying \textbf{redundant features} (highly correlated with each other), and (2)~identifying \textbf{predictive features} (highly correlated with the target).
+
+\subsection*{Pearson Correlation Coefficient}
+
+\begin{definition}[Pearson Correlation Coefficient]
+For two random variables $X$ and $Y$ with standard deviations $\sigma_X, \sigma_Y > 0$, the Pearson correlation coefficient is:
+$$r_{XY} = \frac{\text{Cov}(X, Y)}{\sigma_X \cdot \sigma_Y} = \frac{\displaystyle\sum_{i=1}^{m}(x_i - \bar{x})(y_i - \bar{y})}{\sqrt{\displaystyle\sum_{i=1}^{m}(x_i - \bar{x})^2} \;\cdot\; \sqrt{\displaystyle\sum_{i=1}^{m}(y_i - \bar{y})^2}}$$
+where $r_{XY} \in [-1, +1]$.
+\end{definition}
+
+\begin{description}
+    \item[$r = +1$:] Perfect positive linear relationship---$Y$ increases proportionally with $X$.
+    \item[$r = -1$:] Perfect negative linear relationship---$Y$ decreases proportionally as $X$ increases.
+    \item[$r \approx 0$:] No \emph{linear} relationship. But $X$ and $Y$ may still be strongly related in a non-linear way (e.g., $Y = X^2$ gives $r \approx 0$ for symmetric $X$).
+\end{description}
+
+The absolute value $|r|$ measures relationship \textbf{strength}; the sign indicates \textbf{direction}.
+
+\subsection*{Correlation Matrix and Feature Selection}
+
+The \textbf{correlation matrix} $C \in \mathbb{R}^{d \times d}$ stores pairwise Pearson coefficients for all $d$ features. It is symmetric with $C_{ii} = 1$ along the diagonal. Visualized as a heatmap, it immediately reveals clusters of correlated features.
+
+\begin{lstlisting}[style=pythonstyle]
+import pandas as pd
+import seaborn as sb
+import matplotlib.pyplot as plt
+
+df = pd.read_csv('housing.csv')   # example dataset
+corr = df.corr()                  # pairwise Pearson correlations
+
+plt.figure(figsize=(10, 8))
+sb.heatmap(corr, annot=True, fmt='.2f', cmap='coolwarm')
+plt.title('Feature Correlation Matrix')
+plt.tight_layout(); plt.show()
+\end{lstlisting}
+
+\textbf{Practical usage of the correlation matrix:}
+
+\begin{itemize}
+    \item \textbf{Multicollinearity detection:} If $|r_{ij}| > 0.8$ for features $i$ and $j$, they are nearly redundant. Keeping both inflates model complexity, slows convergence, and causes numerical instability in OLS (recall the matrix inversion in $\ww^* = (X^TX)^{-1}X^T\yy$). Drop one.
+    \item \textbf{Feature--target correlation:} Features with $|r|$ close to $0$ against the target contribute little predictive signal to a linear model and are candidates for removal.
+    \item \textbf{Example:} In the Boston Housing dataset, \texttt{RAD} and \texttt{TAX} have $r = 0.91$---effectively encoding the same information. Selecting \texttt{RM} ($r = 0.70$ with target) and \texttt{LSTAT} ($r = -0.74$ with target) as predictors captures the most information with minimal redundancy.
+\end{itemize}
+
+\begin{remark}[Correlation $\neq$ Causation]
+A high correlation between $X$ and $Y$ does not imply that $X$ causes $Y$. Both may be driven by a latent confounding variable, or the correlation may be coincidental. Correlation is a \emph{statistical} observation; causation requires controlled experimentation or causal inference frameworks.
+\end{remark}
+
+\begin{remark}[Beyond Pearson]
+Pearson's $r$ captures only \textbf{linear} associations. For monotonic but non-linear relationships, \textbf{Spearman's rank correlation} (operates on ranks rather than raw values) is more robust. Pandas offers both via \texttt{df.corr(method='spearman')}.
+\end{remark}
+
+%% ============================================================
+\section*{Polynomial Features}
+%% ============================================================
+
+When the true relationship between features and target is non-linear, a standard linear model $\hat{y} = \ww^T\xx$ will underfit. \textbf{Polynomial features} address this by expanding the input space so that a \emph{linear} model in the expanded space corresponds to a \emph{non-linear} model in the original space.
+
+\subsection*{Single-Feature Case}
+
+Given a single feature $x$, we construct the polynomial feature vector of degree $M$:
+$$\phi(x) = [1,\; x,\; x^2,\; x^3,\; \dots,\; x^M]^T$$
+
+The polynomial regression model is:
+$$\hat{y} = w_0 + w_1 x + w_2 x^2 + \dots + w_M x^M = \ww^T \phi(x)$$
+
+\begin{remark}[Still Linear in Parameters]
+Despite the non-linear feature transformations, the model is \textbf{linear in the weights} $\ww$. This means we can use the exact same OLS machinery, gradient descent, and regularization techniques developed for linear regression. The ``trick'' is that we transform the input \emph{before} feeding it to a linear learner.
+\end{remark}
+
+\subsection*{Multi-Feature Case and Interaction Terms}
+
+For $d$ original features $[x_1, x_2, \dots, x_d]$ and degree $M = 2$, \texttt{PolynomialFeatures} generates:
+$$\phi(\xx) = [1,\; x_1,\; x_2,\; \dots,\; x_d,\; x_1^2,\; x_1 x_2,\; \dots,\; x_d^2]$$
+
+The \textbf{interaction terms} (e.g., $x_1 x_2$) capture joint effects that individual features cannot represent. The number of output features for degree $M$ with $d$ inputs is $\binom{d + M}{M}$, which grows combinatorially---a practical concern for large $d$.
+
+\subsection*{Bias--Variance Trade-off}
+
+\begin{description}
+    \item[Low degree ($M$ small):] High bias (underfitting). The model cannot capture complex relationships.
+    \item[High degree ($M$ large):] High variance (overfitting). The model fits noise in the training data, and the large number of parameters relative to samples leads to poor generalization.
+\end{description}
+
+Mitigation strategies: use \textbf{regularization} (Ridge, Lasso) to penalize large coefficients, and select $M$ via \textbf{cross-validation}.
+
+\subsection*{Polynomial Regression in Practice}
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import mean_squared_error
+
+# Generate non-linear data: y = 3x - 0.5x^2 + noise
+np.random.seed(42)
+X = np.sort(np.random.uniform(-3, 3, 50)).reshape(-1, 1)
+y = 3*X.ravel() - 0.5*X.ravel()**2 + np.random.randn(50)*0.5
+
+# Degree-2 polynomial pipeline
+poly_model = make_pipeline(
+    PolynomialFeatures(degree=2, include_bias=False),
+    LinearRegression()
+)
+poly_model.fit(X, y)
+y_pred = poly_model.predict(X)
+
+print(f"MSE = {mean_squared_error(y, y_pred):.3f}")
+# Inspect learned coefficients: [w1, w2] for [x, x^2]
+lr = poly_model.named_steps['linearregression']
+print(f"Coefficients: {lr.coef_}")     # ~ [3.0, -0.5]
+print(f"Intercept:    {lr.intercept_:.3f}")
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle]
+# Comparing degrees 1, 2, 5 on the same data
+from sklearn.model_selection import cross_val_score
+
+for deg in [1, 2, 5]:
+    pipe = make_pipeline(
+        PolynomialFeatures(degree=deg, include_bias=False),
+        LinearRegression()
+    )
+    scores = cross_val_score(pipe, X, y, cv=5,
+                             scoring='neg_mean_squared_error')
+    print(f"Degree {deg}: CV-MSE = {-scores.mean():.3f}")
+# Degree 2 should win: matches the true data-generating process
+\end{lstlisting}
+
+\begin{remark}[Practical Checklist]
+When applying polynomial features:
+\begin{enumerate}
+    \item \textbf{Scale first.} Features on different scales produce enormous polynomial values. Standardize before applying \texttt{PolynomialFeatures}.
+    \item \textbf{Start low.} Try degree 2 or 3. Degrees above 5 rarely help and almost always overfit.
+    \item \textbf{Regularize.} Combine with Ridge or Lasso to keep weights under control.
+    \item \textbf{Cross-validate.} Let the data select the degree, not intuition.
+\end{enumerate}
+\end{remark}
+
+%% ============================================================
+\section*{Tying It All Together}
+%% ============================================================
+
+A typical feature engineering pipeline for tabular data:
+
+\begin{enumerate}
+    \item \textbf{Identify feature types:} numerical (continuous/discrete) vs.\ categorical (nominal/ordinal).
+    \item \textbf{Encode categoricals:} label encoding for ordinal, one-hot for nominal (drop one column).
+    \item \textbf{Analyze correlations:} compute the correlation matrix, drop one feature from every pair with $|r| > 0.8$, and prioritize features strongly correlated with the target.
+    \item \textbf{Expand features if needed:} apply polynomial features to capture non-linearities, using cross-validation to choose the degree and regularization to prevent overfitting.
+\end{enumerate}
+
+Feature engineering is often where the real predictive power is won or lost. As Andrew Ng put it: \emph{``Applied Machine Learning is basically feature engineering.''}

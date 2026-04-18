@@ -1,0 +1,170 @@
+\chapter*{The Supervised Learning Workflow and the Canonical SL Problem}
+\addcontentsline{toc}{chapter}{The Supervised Learning Workflow and the Canonical SL Problem}
+
+\section*{SL Classification Workflow: A Running Example}
+
+Consider a concrete task: given data about cars, learn to predict whether a car is a \textbf{family car} or not. Each car is described by measurable attributes (price, engine power, color, \ldots), and labeled $+$ (family car) or $-$ (not family car). The goal is to learn a mapping $f: X \to Y$ that generalizes to unseen cars.
+
+\begin{definition}[Supervised Learning Dataset]
+A dataset $D$ consists of $m$ labeled examples:
+$$D = \{(\xx^{(i)}, y^{(i)})\}_{i=1}^{m}$$
+where $\xx^{(i)} \in \mathbb{R}^d$ is the \textbf{feature vector} (the numeric representation of input $i$) and $y^{(i)} \in \mathcal{Y}$ is the \textbf{label} (the target output). For binary classification, $\mathcal{Y} = \{0, 1\}$ (or $\{-1, +1\}$).
+\end{definition}
+
+In the car example, each car $i$ is represented by a two-dimensional feature vector:
+$$\xx^{(i)} = \begin{bmatrix} \text{price}^{(i)} \\ \text{engine\_power}^{(i)} \end{bmatrix} \in \mathbb{R}^2, \qquad y^{(i)} = \begin{cases} 1 & \text{if } \xx^{(i)} \text{ is a family car} \\ 0 & \text{otherwise} \end{cases}$$
+
+The function we seek maps features to categories: $f: (\text{price}, \text{power}) \to \{0, 1\}$, or more generally, $f: \mathbb{R}^d \to \mathcal{Y}$.
+
+\subsection*{Exploratory Data Analysis (EDA)}
+
+Before modeling, \textbf{Exploratory Data Analysis (EDA)} examines the dataset to inform design choices:
+\begin{itemize}
+    \item Visualize examples in the feature space (e.g., scatter plot of price vs.\ engine power, colored by class).
+    \item Compute summary statistics: class balance, feature ranges, medians per class, correlations.
+    \item Identify potential issues: missing values, outliers, class imbalance.
+\end{itemize}
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_classification
+
+# Generate a toy 2-feature binary classification dataset
+X, y = make_classification(n_samples=50, n_features=2,
+    n_redundant=0, n_clusters_per_class=1, random_state=42)
+
+# EDA: scatter plot in feature space
+plt.scatter(X[y==0, 0], X[y==0, 1], marker='o', label='Class 0')
+plt.scatter(X[y==1, 0], X[y==1, 1], marker='+', label='Class 1')
+plt.xlabel('Feature 1 (e.g., price)')
+plt.ylabel('Feature 2 (e.g., engine power)')
+plt.legend(); plt.title('Dataset in Feature Space'); plt.show()
+\end{lstlisting}
+
+\section*{The Hypothesis Class $\mathcal{H}$}
+
+The core question is: \emph{what is the relationship $f$ between the features and the target?} We do not know the true $f$, so we must choose a \textbf{hypothesis class} $\mathcal{H}$---a family of candidate functions---and search within it for a good approximation $\hat{f} \in \mathcal{H}$.
+
+\begin{definition}[Hypothesis Class and Inductive Bias]
+The \textbf{hypothesis class} $\mathcal{H}$ is the set of all functions we consider as candidates for the true mapping $f$. The act of choosing $\mathcal{H}$ constitutes our \textbf{inductive bias}: we commit to explaining the data through the lens of $\mathcal{H}$, which constrains what patterns we can express.
+\end{definition}
+
+\begin{remark}[Examples of Hypothesis Classes]
+For a 2D classification problem, $\mathcal{H}$ could be:
+\begin{description}
+    \item[Axis-aligned rectangles:] Decision regions of the form $(p_1 \leq x_1 \leq p_2) \wedge (e_1 \leq x_2 \leq e_2)$. Four parameters.
+    \item[Circles:] $(x_1 - c_1)^2 + (x_2 - c_2)^2 - r^2 = 0$. Three parameters.
+    \item[Ellipses:] $\frac{(x_1 - c_1)^2}{a^2} + \frac{(x_2 - c_2)^2}{b^2} - 1 = 0$. Four or five parameters (with rotation).
+    \item[Linear separators:] $w_1 x_1 + w_2 x_2 + w_0 = 0$. Three parameters.
+\end{description}
+Each choice imposes a different geometric structure on the decision boundary.
+\end{remark}
+
+In practice, you rarely define $\mathcal{H}$ analytically. Different ML \textbf{algorithms} (SVM, decision trees, neural networks) implicitly define different hypothesis spaces through their architecture and parameters. The key insight: every algorithm carries an inductive bias that determines what it can and cannot learn.
+
+\subsection*{Parametric Hypotheses}
+
+Most hypothesis classes are \textbf{parametric}: the candidate function is fully determined by a parameter vector $\boldsymbol{\theta}$.
+
+\begin{definition}[Parametric Hypothesis]
+A parametric hypothesis $f_{\boldsymbol{\theta}}(\xx)$ is a function whose behavior is entirely determined by a finite-dimensional parameter vector $\boldsymbol{\theta} \in \mathbb{R}^p$. Learning reduces to finding the optimal $\boldsymbol{\theta}^*$.
+\end{definition}
+
+For axis-aligned rectangles: $\boldsymbol{\theta} = (p_1, p_2, e_1, e_2)$ and $f_{\boldsymbol{\theta}}(\xx) = 1$ iff $\xx$ falls inside the rectangle. For a linear classifier: $\boldsymbol{\theta} = (w_0, w_1, w_2)$ and $f_{\boldsymbol{\theta}}(\xx) = \text{sgn}(w_0 + w_1 x_1 + w_2 x_2)$.
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+
+# Different algorithms = different implicit hypothesis spaces
+svm_model = SVC(kernel='linear')   # H = linear separators
+tree_model = DecisionTreeClassifier(max_depth=3)  # H = axis-aligned splits
+
+svm_model.fit(X, y)   # Find best linear boundary
+tree_model.fit(X, y)   # Find best tree partition
+
+# Each model's decision boundary has a fundamentally different shape
+print(f"SVM accuracy:  {svm_model.score(X, y):.2f}")
+print(f"Tree accuracy: {tree_model.score(X, y):.2f}")
+\end{lstlisting}
+
+\section*{Consistent Hypotheses}
+
+One natural criterion: find $\hat{f} \in \mathcal{H}$ that makes \emph{zero} mistakes on the training data.
+
+\begin{definition}[Consistent Hypothesis]
+A hypothesis $\hat{f}$ is \textbf{consistent} with dataset $D$ if it correctly classifies every training example:
+$$\hat{f}(\xx^{(i)}) = y^{(i)} \quad \forall\; (\xx^{(i)}, y^{(i)}) \in D$$
+\end{definition}
+
+There may be many consistent hypotheses within $\mathcal{H}$. Two extremes are informative:
+\begin{description}
+    \item[Most specific ($S$):] The tightest boundary that still contains all positive examples. Minimal generalization beyond the data.
+    \item[Most general ($G$):] The broadest boundary consistent with the data. Maximal generalization given the constraint of zero training error.
+\end{description}
+
+\begin{remark}[Consistency $\neq$ Generalization]
+Three critical caveats about consistency:
+\begin{enumerate}
+    \item A consistent hypothesis can still be \textbf{wrong on unseen data}---it merely memorized the training set without capturing the true pattern.
+    \item Consistency may be \textbf{impossible} given a particular $\mathcal{H}$ (e.g., linearly inseparable data with a linear hypothesis class).
+    \item For small datasets, consistency is especially unreliable as a proxy for true performance.
+\end{enumerate}
+\end{remark}
+
+\section*{The Loss Function}
+
+Since consistency alone is insufficient, we need a principled way to measure \emph{how wrong} a hypothesis is. This is the role of the \textbf{loss function}.
+
+\begin{definition}[Loss Function]
+A \textbf{loss function} $\ell: \mathcal{Y} \times \mathcal{Y} \to \mathbb{R}$ maps a (prediction, true label) pair to a non-negative real number quantifying the error:
+$$\ell\!\left(f_{\boldsymbol{\theta}}(\xx),\; y\right) \to \mathbb{R}$$
+Smaller loss means better prediction. The loss is zero when the prediction is perfect.
+\end{definition}
+
+\begin{definition}[0/1 Loss for Classification]
+For binary classification, the simplest loss counts misclassifications:
+$$\ell_{0/1}\!\left(f_{\boldsymbol{\theta}}(\xx^{(i)}),\; y^{(i)}\right) = \begin{cases} 1 & \text{if } f_{\boldsymbol{\theta}}(\xx^{(i)}) \neq y^{(i)} \\ 0 & \text{if } f_{\boldsymbol{\theta}}(\xx^{(i)}) = y^{(i)} \end{cases}$$
+Summing over the dataset gives the total number of errors. A consistent hypothesis achieves $\sum \ell_{0/1} = 0$.
+\end{definition}
+
+The loss on training data estimates the \emph{risk} of making future mistakes: a hypothesis with loss 3 on the training set is presumably worse than one with loss 1, though neither guarantee is absolute for unseen data.
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+
+# Suppose we have predictions and true labels
+y_true = np.array([1, 0, 1, 1, 0, 0, 1, 0, 1, 1])
+y_pred = np.array([1, 0, 0, 1, 0, 1, 1, 0, 1, 0])
+
+# Compute 0/1 loss manually
+zero_one_losses = (y_pred != y_true).astype(int)  # per-example loss
+total_loss = zero_one_losses.sum()                 # total misclassifications
+empirical_risk = zero_one_losses.mean()            # average loss (ERM objective)
+
+print(f"Per-example losses: {zero_one_losses}")    # [0 0 1 0 0 1 0 0 0 1]
+print(f"Total errors: {total_loss}")               # 3
+print(f"Empirical risk: {empirical_risk:.2f}")      # 0.30
+\end{lstlisting}
+
+\section*{The Canonical Supervised Learning Problem}
+
+We can now state the central optimization problem that unifies all supervised learning.
+
+\begin{definition}[Empirical Risk Minimization (ERM)]
+Given a training set $D = \{(\xx^{(i)}, y^{(i)})\}_{i=1}^m$, a parametric hypothesis $f_{\boldsymbol{\theta}}$, and a loss function $\ell$, the \textbf{Canonical SL Problem} is to find the parameter vector $\boldsymbol{\theta}^*$ that minimizes the \textbf{empirical risk}:
+$$\boldsymbol{\theta}^* = \arg\min_{\boldsymbol{\theta}} \; L_{\text{emp}}(\boldsymbol{\theta}; D) = \arg\min_{\boldsymbol{\theta}} \; \frac{1}{m} \sum_{i=1}^{m} \ell\!\left(f_{\boldsymbol{\theta}}(\xx^{(i)}),\; y^{(i)}\right)$$
+This is called \textbf{Empirical Risk Minimization (ERM)}: we minimize the sample average of losses over the training data.
+\end{definition}
+
+Every supervised learning algorithm---linear regression, logistic regression, SVMs, neural networks---is an instantiation of this template. They differ in three design choices:
+\begin{enumerate}
+    \item \textbf{Hypothesis class} $\mathcal{H}$: What form does $f_{\boldsymbol{\theta}}$ take?
+    \item \textbf{Loss function} $\ell$: How do we penalize wrong predictions?
+    \item \textbf{Optimization method}: How do we solve the $\arg\min$?
+\end{enumerate}
+
+\begin{remark}[ERM Is Necessary but Not Sufficient]
+Minimizing training error is a \emph{necessary} condition for a good model, but it is \textbf{not sufficient}. A model that perfectly fits the training data (zero empirical risk) may perform terribly on unseen data---this is \textbf{overfitting}. The true goal is to minimize the \emph{generalization error} (the expected loss on new, unseen examples drawn from the same distribution). Bridging the gap between empirical risk and true risk is the central challenge of statistical learning theory, addressed via regularization, validation, and capacity control.
+\end{remark}

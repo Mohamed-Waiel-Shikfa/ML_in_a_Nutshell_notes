@@ -1,0 +1,174 @@
+\chapter*{Feature Scaling}
+\addcontentsline{toc}{chapter}{Feature Scaling}
+
+\section*{Why Feature Scaling Matters}
+
+Real-world datasets contain features measured in different units and spanning wildly different ranges.
+Consider a dataset with \textit{age} ($0$--$100$) and \textit{salary} ($\$20{,}000$--$\$200{,}000$):
+a raw Euclidean distance computation is dominated almost entirely by salary, making age nearly invisible to the model.
+
+\begin{remark}[Which Algorithms Are Affected?]
+Not every algorithm suffers from unscaled features.
+The key distinction is whether the algorithm relies on \textbf{distances} or \textbf{gradient-based optimization}:
+\begin{itemize}
+    \item \textbf{Distance-based methods} ($k$-NN, SVM, $k$-Means): the feature with the largest range dominates the distance metric, biasing the model toward that single feature.
+    \item \textbf{Gradient descent}: unscaled features produce elongated loss contours, causing the optimizer to zig-zag slowly toward the minimum instead of descending directly.
+    \item \textbf{Regularization} ($L_1$, $L_2$): penalizes all weights equally. If features live on different scales, the penalty is not comparable across weights --- a large weight on a tiny-range feature is not the same as a large weight on a huge-range feature.
+    \item \textbf{Tree-based methods} (Decision Trees, Random Forests, Gradient Boosting): \textbf{not affected}, because splits depend only on feature ordering, not magnitude.
+\end{itemize}
+\end{remark}
+
+\section*{Standardization (Z-Score Normalization)}
+
+\begin{definition}[Standardization]
+Given a feature with sample mean $\mu$ and sample standard deviation $\sigma$, \textbf{standardization} transforms each value $x$ into a \textbf{z-score}:
+$$x' = \frac{x - \mu}{\sigma}$$
+The resulting feature has \textbf{zero mean} and \textbf{unit variance}.
+\end{definition}
+
+\begin{description}
+    \item[Properties:]~
+    \begin{itemize}
+        \item Linear transformation --- does not change the shape of the distribution.
+        \item Output is \textit{not} bounded to any fixed range.
+        \item Works well for approximately \textbf{normally distributed} features, but applies to any distribution.
+    \end{itemize}
+    \item[Preferred for:] SVM, Logistic Regression, PCA, Neural Networks.
+\end{description}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42)
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)  # Fit + transform
+X_test_scaled  = scaler.transform(X_test)        # Transform only!
+
+# Verify: training set has mean~0, std~1
+print(X_train_scaled.mean(axis=0))  # array of ~0s
+print(X_train_scaled.std(axis=0))   # array of ~1s
+\end{lstlisting}
+
+\section*{Min-Max Normalization}
+
+\begin{definition}[Min-Max Scaling]
+\textbf{Min-Max normalization} rescales each feature to a fixed range $[0, 1]$:
+$$x' = \frac{x - x_{\min}}{x_{\max} - x_{\min}}$$
+where $x_{\min}$ and $x_{\max}$ are the minimum and maximum values of the feature.
+\end{definition}
+
+\begin{description}
+    \item[Properties:]~
+    \begin{itemize}
+        \item Preserves the original distribution shape (linear rescaling to $[0,1]$).
+        \item Sensitive to \textbf{outliers}: a single extreme value compresses all other values into a narrow sub-range.
+    \end{itemize}
+    \item[Preferred for:] Neural network input layers, image pixel scaling ($[0,255] \to [0,1]$), algorithms that expect bounded inputs.
+\end{description}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.preprocessing import MinMaxScaler
+
+scaler = MinMaxScaler()                            # Default range [0,1]
+X_train_scaled = scaler.fit_transform(X_train)     # Fit on train
+X_test_scaled  = scaler.transform(X_test)          # Same params on test
+
+# Custom range example:
+scaler_custom = MinMaxScaler(feature_range=(-1, 1))
+X_train_custom = scaler_custom.fit_transform(X_train)
+\end{lstlisting}
+
+\section*{Robust Scaling}
+
+\begin{definition}[Robust Scaling]
+\textbf{Robust scaling} centers by the \textbf{median} and scales by the \textbf{interquartile range} (IQR $= Q_3 - Q_1$):
+$$x' = \frac{x - \text{median}}{Q_3 - Q_1}$$
+\end{definition}
+
+Because the median and IQR are resistant to extreme values, robust scaling is the preferred choice when the data contains \textbf{significant outliers} that would distort standardization or min-max scaling.
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.preprocessing import RobustScaler
+
+scaler = RobustScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled  = scaler.transform(X_test)
+\end{lstlisting}
+
+\section*{MaxAbs Scaling}
+
+\begin{definition}[MaxAbs Scaling]
+\textbf{MaxAbs scaling} divides each feature by its maximum absolute value:
+$$x' = \frac{x}{|x_{\max}|}$$
+The result is bounded to $[-1, 1]$.
+\end{definition}
+
+The critical property of MaxAbs scaling is that it \textbf{preserves sparsity}: zero entries remain exactly zero after transformation. This makes it the natural choice for \textbf{sparse data} (e.g., TF-IDF text features, one-hot encodings).
+
+\section*{Comparison of Scaling Methods}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\bfseries}l X c c}
+\toprule
+Method & Formula & Range & Outlier-Robust? \\
+\midrule
+Standard & $(x - \mu) / \sigma$ & Unbounded & No \\
+Min-Max & $(x - x_{\min}) / (x_{\max} - x_{\min})$ & $[0,1]$ & No \\
+Robust & $(x - \text{median}) / \text{IQR}$ & Unbounded & Yes \\
+MaxAbs & $x / |x_{\max}|$ & $[-1,1]$ & No \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section*{Critical Rule: Fit on Training Data Only}
+
+\begin{remark}[Information Leakage]
+The scaler's parameters ($\mu$, $\sigma$, $x_{\min}$, $x_{\max}$, etc.) must be computed \textbf{exclusively from the training set}. The same learned parameters are then applied to the validation and test sets via \texttt{.transform()}.
+
+\textbf{Never} call \texttt{fit()} or \texttt{fit\_transform()} on the test set. Doing so leaks information about the test distribution into the preprocessing step, producing optimistically biased evaluation metrics.
+\end{remark}
+
+The correct workflow:
+\begin{enumerate}
+    \item \texttt{scaler.fit\_transform(X\_train)} --- learn parameters from training data and transform it.
+    \item \texttt{scaler.transform(X\_val)} --- apply the \textit{same} parameters to validation data.
+    \item \texttt{scaler.transform(X\_test)} --- apply the \textit{same} parameters to test data.
+\end{enumerate}
+
+\subsection*{Using a Pipeline to Prevent Leakage}
+
+An \texttt{sklearn.pipeline.Pipeline} bundles the scaler and the model into a single estimator, ensuring that \texttt{fit\_transform} is called on training folds and \texttt{transform} on validation folds automatically during cross-validation.
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import cross_val_score
+
+# Bundle scaler + model: scaling is handled correctly
+pipe = Pipeline([
+    ('scaler', StandardScaler()),
+    ('knn',    KNeighborsClassifier(n_neighbors=5))
+])
+
+# Cross-validation applies fit_transform on train folds,
+# transform on validation folds -- no leakage
+scores = cross_val_score(pipe, X, y, cv=5, scoring='accuracy')
+print(f"Mean CV Accuracy: {scores.mean():.3f}")
+
+# Final fit on all training data, evaluate on held-out test set
+pipe.fit(X_train, y_train)
+print(f"Test Accuracy: {pipe.score(X_test, y_test):.3f}")
+\end{lstlisting}
+
+\section*{When to Scale}
+
+\begin{description}
+    \item[Always scale:] $k$-NN, SVM, Logistic Regression, Neural Networks, PCA, $k$-Means, and any method using gradient descent or distance computations.
+    \item[No need to scale:] Decision Trees, Random Forests, Gradient Boosted Trees --- splits depend on feature order, not magnitude.
+    \item[Order of operations:] Apply scaling \textbf{after} handling missing values and outliers, since the scaler's statistics ($\mu$, $\sigma$, etc.) would be corrupted by placeholder values or extreme outliers.
+\end{description}
+

@@ -1,0 +1,210 @@
+\chapter*{k-Nearest Neighbors and Classification Metrics}
+\addcontentsline{toc}{chapter}{k-Nearest Neighbors and Classification Metrics}
+
+\section*{Instance-Based Learning}
+
+Every model we have studied so far---linear regression, logistic regression, SVM---learns an explicit set of parameters $\ww^*$ during training and then discards the data. \textbf{k-Nearest Neighbors (kNN)} takes the opposite approach: it stores \textit{all} training examples and defers computation to prediction time. This paradigm is called \textbf{instance-based} (or \textbf{lazy}) \textbf{learning}.
+
+\begin{definition}[k-Nearest Neighbors]
+Given a training set $\mathcal{D} = \{(\xx^{(i)}, y^{(i)})\}_{i=1}^{N}$ and a query point $\xx$:
+\begin{enumerate}
+    \item Compute the distance $d(\xx, \xx^{(i)})$ to every training example.
+    \item Identify the set $\mathcal{N}_k(\xx)$ of the $k$ closest training examples.
+    \item \textbf{Classification:} assign $\xx$ the class receiving the most votes (majority rule):
+    $$\hat{y} = \arg\max_{c} \sum_{\xx^{(i)} \in \mathcal{N}_k(\xx)} \mathbf{1}[y^{(i)} = c]$$
+    \item \textbf{Regression:} return the average of the neighbors' target values:
+    $$\hat{y} = \frac{1}{k} \sum_{\xx^{(i)} \in \mathcal{N}_k(\xx)} y^{(i)}$$
+\end{enumerate}
+\end{definition}
+
+kNN is \textbf{non-parametric}: it makes no assumptions about the functional form of the decision boundary or the underlying data distribution. The model \textit{is} the dataset itself.
+
+\section*{Distance Metrics}
+
+The notion of ``closest'' depends entirely on the chosen distance metric. For two vectors $\xx, \yy \in \mathbb{R}^d$:
+
+\begin{definition}[Minkowski Distance ($L_p$ Norm)]
+$$d_p(\xx, \yy) = \left( \sum_{j=1}^{d} |x_j - y_j|^p \right)^{1/p}$$
+\end{definition}
+
+\begin{description}
+    \item[Euclidean distance ($p=2$):] $d_2(\xx, \yy) = \sqrt{\sum_{j=1}^{d} (x_j - y_j)^2}$. The most common default; corresponds to the $L_2$ norm.
+    \item[Manhattan distance ($p=1$):] $d_1(\xx, \yy) = \sum_{j=1}^{d} |x_j - y_j|$. Sums absolute differences along each axis ($L_1$ norm). More robust to outliers than $L_2$.
+    \item[Chebyshev distance ($p \to \infty$):] $d_\infty(\xx, \yy) = \max_j |x_j - y_j|$. Only the largest coordinate difference matters.
+\end{description}
+
+\begin{remark}[Feature Scaling is Mandatory]
+If feature $x_1$ ranges over $[0, 1000]$ and $x_2$ over $[0, 1]$, then $x_1$ will dominate every distance computation. You \textbf{must} normalize or standardize features before applying kNN---otherwise the metric effectively ignores low-variance features.
+\end{remark}
+
+\section*{The Hyperparameter $k$}
+
+The single hyperparameter $k$ controls the \textbf{bias--variance trade-off} of kNN:
+
+\begin{description}
+    \item[$k = 1$:] Every query point is assigned the label of its single nearest neighbor. The model captures all local structure in the data---including noise. This yields \textbf{high variance} (overfitting). On training data, $k{=}1$ always achieves 100\% accuracy, which is a clear sign it memorizes rather than generalizes.
+    \item[Large $k$:] The decision is averaged over many neighbors, smoothing out noise. This introduces \textbf{high bias} (underfitting). In the extreme, $k = N$ assigns every point to the global majority class.
+    \item[Even $k$:] Can produce ties in binary classification. Use \textbf{odd} $k$ or implement tie-breaking (e.g., prefer the class of the nearest neighbor among the tied set).
+\end{description}
+
+\begin{remark}[Selecting $k$]
+Treat $k$ as a hyperparameter and select it via \textbf{cross-validation}. Plot validation accuracy for $k = 1, 3, 5, \ldots$ and pick the $k$ that maximizes generalization performance. Note that \textit{smaller} $k$ corresponds to \textit{higher} model complexity---the relationship is \textbf{inverse}.
+\end{remark}
+
+\section*{Decision Boundaries}
+
+For $k{=}1$, the decision boundary is determined by the \textbf{Voronoi tessellation} of the training points: each training example ``owns'' the region of feature space closest to it, and the boundaries between differently-labeled regions form piecewise-linear surfaces. This produces highly complex, jagged boundaries that track every noise point.
+
+As $k$ increases, the majority-vote averaging smooths these boundaries. The decision regions become larger, simpler, and more regular. This is a direct visual manifestation of the bias--variance trade-off: small $k$ yields intricate boundaries that fit noise; large $k$ yields blunt boundaries that may miss true local structure.
+
+\section*{Strengths and Weaknesses}
+
+\begin{description}
+    \item[Strengths:]~
+    \begin{itemize}
+        \item Conceptually simple---no training phase, no parameters to optimize.
+        \item Naturally handles \textbf{multi-class} problems without modification.
+        \item Can learn arbitrarily complex, \textbf{non-linear} decision boundaries.
+        \item Adapts immediately when new data is added (no retraining).
+    \end{itemize}
+    \item[Weaknesses:]~
+    \begin{itemize}
+        \item \textbf{Slow prediction:} every query requires computing $N$ distances in $\mathbb{R}^d$, giving $O(Nd)$ per prediction.
+        \item \textbf{Memory-intensive:} the entire training set must be stored.
+        \item \textbf{Sensitive to irrelevant features:} noisy or uninformative dimensions distort distances, degrading performance.
+        \item \textbf{Curse of dimensionality:} in high-dimensional spaces, distances between all points converge, making the concept of ``nearest'' meaningless. kNN degrades rapidly as $d$ grows.
+    \end{itemize}
+\end{description}
+
+\section*{kNN in Practice with \texttt{scikit-learn}}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
+
+# Load data and split
+X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42)
+
+# Always scale features before kNN!
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test  = scaler.transform(X_test)
+
+# Fit and evaluate
+knn = KNeighborsClassifier(n_neighbors=5, weights='uniform')
+knn.fit(X_train, y_train)
+print(f"Test accuracy: {knn.score(X_test, y_test):.3f}")
+\end{lstlisting}
+
+\subsection*{Selecting $k$ via Cross-Validation}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.model_selection import cross_val_score
+import numpy as np
+
+k_values = range(1, 26, 2)          # odd values 1..25
+cv_scores = []
+for k in k_values:
+    knn = KNeighborsClassifier(n_neighbors=k)
+    scores = cross_val_score(knn, X_train, y_train, cv=5)
+    cv_scores.append(scores.mean())
+
+best_k = list(k_values)[np.argmax(cv_scores)]
+print(f"Best k = {best_k}, CV accuracy = {max(cv_scores):.3f}")
+\end{lstlisting}
+
+%% ------------------------------------------------------------------
+%% PART 2: Classification Metrics
+%% ------------------------------------------------------------------
+
+\section*{Classification Metrics}
+
+Accuracy alone can be deeply misleading. Consider a medical screening test where only 1\% of patients have the disease: a model that \textit{always} predicts ``healthy'' achieves 99\% accuracy yet catches zero true cases. We need richer metrics that separate different \textit{types} of errors.
+
+\subsection*{The Confusion Matrix}
+
+For binary classification with $y \in \{0, 1\}$ (negative/positive), every prediction falls into one of four categories:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{l|cc}
+ & \textbf{Predicted Positive} & \textbf{Predicted Negative} \\
+\hline
+\textbf{Actual Positive} & True Positive (TP)  & False Negative (FN) \\
+\textbf{Actual Negative} & False Positive (FP) & True Negative (TN) \\
+\end{tabular}
+\end{center}
+
+\begin{description}
+    \item[TP:] Correctly predicted positive (``hit'').
+    \item[TN:] Correctly predicted negative.
+    \item[FP:] Incorrectly predicted positive (``false alarm'' / Type I error).
+    \item[FN:] Incorrectly predicted negative (``miss'' / Type II error).
+\end{description}
+
+\subsection*{Core Metrics}
+
+\begin{definition}[Accuracy]
+$$\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}$$
+The fraction of all predictions that are correct. Misleading when classes are \textbf{imbalanced}.
+\end{definition}
+
+\begin{definition}[Precision]
+$$\text{Precision} = \frac{TP}{TP + FP}$$
+Of all examples \textit{predicted} positive, what fraction is truly positive? High precision means few false alarms.
+\end{definition}
+
+\begin{definition}[Recall (Sensitivity)]
+$$\text{Recall} = \frac{TP}{TP + FN}$$
+Of all \textit{actually} positive examples, what fraction did we detect? High recall means few missed positives.
+\end{definition}
+
+\begin{definition}[F1 Score]
+$$F_1 = \frac{2 \cdot \text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}}$$
+The harmonic mean of precision and recall. It is high only when \textbf{both} precision and recall are high; it penalizes extreme imbalance between the two more harshly than an arithmetic mean would.
+\end{definition}
+
+\begin{definition}[Specificity]
+$$\text{Specificity} = \frac{TN}{TN + FP}$$
+Of all \textit{actually} negative examples, what fraction did we correctly identify as negative? Specificity is the ``recall for the negative class.''
+\end{definition}
+
+\subsection*{The Precision--Recall Trade-Off}
+
+Precision and recall are inherently in tension. Increasing the classifier's threshold (requiring higher confidence to predict positive) increases precision but decreases recall, and vice versa. The right balance depends on the application:
+
+\begin{description}
+    \item[High Recall critical:] Medical diagnosis, fraud detection---missing a true positive is very costly. We prefer to tolerate more false positives (lower precision) rather than miss actual cases.
+    \item[High Precision critical:] Spam filtering, content recommendation---falsely labeling a legitimate email as spam (false positive) is more annoying than letting a few spam emails through (false negatives).
+\end{description}
+
+\begin{remark}[Multi-class Extension]
+For problems with $C > 2$ classes, compute precision, recall, and F1 \textit{per class} (treating each class as ``positive'' vs.\ all others). These per-class scores can be combined via \textbf{macro-averaging} (unweighted mean across classes) or \textbf{weighted averaging} (weighted by class support).
+\end{remark}
+
+\subsection*{Computing Metrics with \texttt{scikit-learn}}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.metrics import (confusion_matrix,
+    precision_score, recall_score, f1_score,
+    classification_report)
+
+# Assuming y_test and y_pred are already computed
+y_pred = knn.predict(X_test)
+
+cm = confusion_matrix(y_test, y_pred)
+print("Confusion Matrix:\n", cm)
+
+# For multi-class: average='macro' treats all classes equally
+print(f"Precision : {precision_score(y_test, y_pred, average='macro'):.3f}")
+print(f"Recall    : {recall_score(y_test, y_pred, average='macro'):.3f}")
+print(f"F1 Score  : {f1_score(y_test, y_pred, average='macro'):.3f}")
+
+# Full per-class breakdown
+print(classification_report(y_test, y_pred,
+      target_names=['setosa', 'versicolor', 'virginica']))
+\end{lstlisting}

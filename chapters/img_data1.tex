@@ -1,172 +1,274 @@
 \chapter*{Feature Engineering for Images (Part 1)}
 \addcontentsline{toc}{chapter}{Feature Engineering for Images (Part 1)}
 
-\section*{Introduction to Image Data}
+\section*{Image Representation}
 
-Before feeding images into traditional machine learning models (like SVMs, Random Forests, or Logistic Regression), we must transform raw pixel data into meaningful, structured representations. This process is known as \textbf{Feature Engineering}.
+Before feeding images into traditional ML models (SVMs, Random Forests, Logistic Regression), we must transform raw pixels into structured, meaningful features. This chapter covers the classical feature engineering pipeline for image data.
 
-\begin{definition}[Image Representation]
-Mathematically, an image $\mathbf{I}$ is represented as a tensor:
+\begin{definition}[Image as a Tensor]
+A digital image $\mathbf{I}$ is a discrete, multidimensional grid of numerical values:
 $$ \mathbf{I} \in \mathbb{R}^{H \times W \times C} $$
-where $H$ is the height, $W$ is the width, and $C$ is the number of color channels.
-
-But in reality, a digital image is fundamentally a discrete, multidimensional grid of numerical values.
+where $H$ = height (rows), $W$ = width (columns), and $C$ = number of color channels.
 \end{definition}
 
 \begin{description}
-    \item[Grayscale Images:] $C = 1$. Each pixel represents intensity, typically ranging from 0 (black) to 255 (white) in an 8-bit integer format.
-    \item[Color Images (RGB):] $C = 3$. Each pixel is a vector of three values corresponding to Red, Green, and Blue intensities.
+    \item[Grayscale:] $C = 1$. Each pixel stores a single intensity value, typically $\in [0, 255]$ (8-bit) where 0 is black and 255 is white.
+    \item[Color (RGB):] $C = 3$. Each pixel is a vector $(R, G, B)$ of red, green, and blue intensities. With 8 bits per channel, this yields $256^3 = 16{,}777{,}216$ possible colors.
 \end{description}
 
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+import numpy as np
+from PIL import Image
+
+# Load image with OpenCV (returns BGR by default)
+img_bgr = cv2.imread("photo.jpg")
+img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+print(img_rgb.shape)   # (H, W, 3) e.g. (480, 640, 3)
+print(img_rgb.dtype)   # uint8: values in [0, 255]
+
+# Equivalently with PIL
+img_pil = Image.open("photo.jpg")
+img_arr = np.array(img_pil)  # Already RGB, shape (H, W, 3)
+\end{lstlisting}
+
 \begin{remark}
-Raw pixel values alone are highly sensitive to variations in lighting, translation, rotation, and scaling. Therefore, passing raw, flattened pixels directly to a model (where $\xx \in \mathbb{R}^{H \cdot W \cdot C}$) usually yields poor generalization. We must extract invariant and robust features.
+Raw pixel values are highly sensitive to lighting, translation, rotation, and scale. Flattening an image into $\xx \in \mathbb{R}^{H \cdot W \cdot C}$ and feeding it directly to a model yields poor generalization. We must extract \textbf{invariant} and \textbf{robust} features.
 \end{remark}
 
-\section*{Image Metadata}
+\section*{Image Metadata (EXIF)}
 
-Before processing pixel intensities, many image formats contain embedded \textbf{Metadata} (e.g., EXIF data). While not part of the visual signal itself, these attributes provide critical context for feature engineering:
+Many image formats embed \textbf{metadata} via the \textbf{Exchangeable Image File Format (EXIF)} standard, recorded by the capture device. These provide features \textit{without} processing pixel data:
 
-\begin{itemize}
-    \item \textbf{Geometric Metadata:} Image height ($H$), width ($W$), and aspect ratio.
-    \item \textbf{Photometric Metadata:} Color space (RGB, Grayscale, HSV), bit depth (e.g., 8-bit vs. 16-bit), and compression type.
-    \item \textbf{Acquisition Data:} Camera settings (shutter speed, aperture, ISO), timestamps, and GPS coordinates which can help normalize environmental variations.
-\end{itemize}
+\begin{description}
+    \item[Geometric:] Height ($H$), width ($W$), aspect ratio, resolution.
+    \item[Photometric:] Color space, bit depth (8-bit vs.\ 16-bit), compression format.
+    \item[Acquisition:] Camera model, shutter speed, aperture, ISO, focal length, GPS coordinates, timestamp.
+\end{description}
+
+\begin{lstlisting}[style=pythonstyle]
+from exif import Image as ExifImage
+
+with open("photo.jpg", "rb") as f:
+    meta = ExifImage(f)
+if meta.has_exif:
+    print(f"Camera: {meta.make} {meta.model}")
+    print(f"ISO: {meta.photographic_sensitivity}")
+    print(f"GPS: {meta.gps_latitude} {meta.gps_latitude_ref}")
+\end{lstlisting}
 
 \section*{Color Spaces and Transformations}
 
-The default RGB color space is heavily correlated with illumination. Transforming the color space is often the first step in feature engineering to decouple color information from lighting.
-
-\begin{itemize}
-    \item \textbf{Grayscale Conversion:} Reduces dimensionality and removes color variance if color is irrelevant to the task. The standard luminosity formula accounts for human perception:
-    $$ Y = 0.299R + 0.587G + 0.114B $$
-    \item \textbf{HSV / HSL (Hue, Saturation, Value/Lightness):}
-    \begin{description}
-        \item[Hue:] Represents the pure color type (e.g., "red", "blue") as an angle from $0^\circ$ to $360^\circ$.
-        \item[Saturation:] Represents the intensity or purity of the color.
-        \item[Value:] Represents the brightness.
-    \end{description}
-    By isolating the \textit{Value} channel, we can achieve invariance to shadows and lighting conditions while retaining the \textit{Hue} for color-based classification.
-\end{itemize}
-
-\section*{Basic Image Features}
-
-\subsection*{1. Global Features: Color Histograms}
-A color histogram describes the global distribution of colors in an image, completely ignoring spatial layout.
+RGB channels are heavily correlated with illumination. Transforming the color space is often the first preprocessing step.
 
 \begin{description}
-    \item[Mechanism:] The color space is divided into a set of discrete "bins." We iterate through all pixels in the image and increment the bin corresponding to the pixel's color value.
-    \item[Normalization:] To ensure the feature vector is invariant to image size, the histogram is normalized (divided by the total number of pixels), producing a discrete probability distribution.
-    \item[Advantages:] Perfectly invariant to translation and rotation. Highly robust to scaling and partial occlusion.
-    \item[Disadvantages:] Complete loss of spatial information. An image of a red apple on green grass will have the exact same histogram as an image of scattered red and green pixels.
+    \item[Grayscale Conversion:] Reduces $C=3$ to $C=1$, removing color variance when color is task-irrelevant. The standard luminosity formula (ITU-R BT.601) weights channels by human perceptual sensitivity:
+    $$ Y = 0.299R + 0.587G + 0.114B $$
+    \item[HSV (Hue, Saturation, Value):] Decouples color from brightness.
+    \begin{description}
+        \item[Hue:] Pure color type as an angle $\in [0^\circ, 360^\circ]$.
+        \item[Saturation:] Color purity/intensity.
+        \item[Value:] Brightness level.
+    \end{description}
+    Isolating the \textit{Value} channel provides invariance to shadows and lighting while retaining \textit{Hue} for color-based tasks.
 \end{description}
 
-\subsection*{2. Local Features: Spatial Patching}
-To retain spatial context while avoiding the rigidity of full-image flattening, we can divide the image into a grid of sub-regions (patches) and compute basic features (like histograms or mean intensities) for each patch independently.
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+import numpy as np
 
-\section*{Spatial Filtering and Convolution}
+img = cv2.imread("photo.jpg")
 
-To extract structural features (edges, corners, textures), we rely on local neighborhood operations. This involves sliding a small matrix across the image.
+# Convert BGR -> Grayscale
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+print(gray.shape)  # (H, W) -- single channel
 
-\begin{definition}[Kernel / Filter]
-A kernel $\mathbf{K}$ is a small, typically square matrix (e.g., $3 \times 3$ or $5 \times 5$) of weights. It defines how a pixel's neighborhood influences its new value.
-\end{definition}
+# Convert BGR -> HSV
+hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+hue, sat, val = hsv[:,:,0], hsv[:,:,1], hsv[:,:,2]
+
+# Grayscale intensity range
+print(f"Intensity range: [{gray.min()}, {gray.max()}]")
+\end{lstlisting}
 
 \section*{Aggregate Statistics (Global Features)}
 
-A fundamental approach to reducing the dimensionality of an image $\mathbf{I}$ is to treat pixel intensities as a distribution and calculate its moments. These statistics provide a global summary of the image's brightness and contrast.
+Treat pixel intensities as a distribution and compute its \textbf{moments}---a compact global summary of brightness and contrast.
 
 \begin{description}
-    \item[Mean ($\mu$):] Represents the average brightness of the image.
-    $$ \mu = \frac{1}{H \cdot W} \sum_{i=1}^H \sum_{j=1}^W I(i,j) $$
+    \item[Mean ($\mu$):] Average brightness.
+    $$ \mu = \frac{1}{H \cdot W} \sum_{i=1}^{H} \sum_{j=1}^{W} I(i,j) $$
 
-    \item[Variance ($\sigma^2$):] Measures the "spread" of intensities, often correlating with global image contrast.
-    $$ \sigma^2 = \frac{1}{H \cdot W} \sum_{i=1}^H \sum_{j=1}^W (I(i,j) - \mu)^2 $$
+    \item[Variance ($\sigma^2$):] Intensity spread; correlates with global contrast.
+    $$ \sigma^2 = \frac{1}{H \cdot W} \sum_{i=1}^{H} \sum_{j=1}^{W} (I(i,j) - \mu)^2 $$
 
-    \item[Skewness:] Measures the asymmetry of the intensity distribution around the mean. A positive skew indicates a distribution with a tail toward higher (brighter) intensities.
+    \item[Skewness:] Asymmetry of the intensity distribution. Positive skew $\Rightarrow$ tail toward brighter intensities.
 
-    \item[Kurtosis:] Describes the "peakedness" or the presence of outliers in the intensity distribution. High kurtosis suggests the image contains many pixels that are much brighter or darker than the average (high contrast/texture).
+    \item[Kurtosis:] ``Peakedness'' of the distribution. High kurtosis $\Rightarrow$ many pixels far from the mean (high contrast/texture regions).
 \end{description}
 
 \begin{remark}
-While these aggregate statistics are computationally efficient and invariant to rotation or translation, they discard all spatial information. Consequently, they are typically used as auxiliary features alongside local descriptors like SIFT or HOG.
+Aggregate statistics are computationally cheap and invariant to rotation/translation, but discard \textit{all} spatial information. They are typically used as auxiliary features alongside spatial descriptors (SIFT, HOG).
 \end{remark}
 
-\subsection*{Cross-Correlation vs. Convolution}
+\section*{Color Histograms (Global Features)}
 
-Let $\mathbf{I}$ be the image and $\mathbf{K}$ be a kernel of size $(2k+1) \times (2k+1)$. The new value of a pixel at position $(i, j)$ is computed as:
+A \textbf{color histogram} captures the global distribution of pixel intensities, completely discarding spatial layout.
 
 \begin{description}
-    \item[Cross-Correlation:] The kernel is laid directly over the image.
-    $$ G[i, j] = (\mathbf{I} \otimes \mathbf{K})[i, j] = \sum_{u=-k}^{k} \sum_{v=-k}^{k} \mathbf{K}[u, v] \mathbf{I}[i+u, j+v] $$
-    \item[Convolution:] The kernel is vertically and horizontally flipped before multiplication. In signal processing, this ensures the operation is associative. In machine learning, the terms are often used interchangeably because weights are learned.
-    $$ G[i, j] = (\mathbf{I} * \mathbf{K})[i, j] = \sum_{u=-k}^{k} \sum_{v=-k}^{k} \mathbf{K}[u, v] \mathbf{I}[i-u, j-v] $$
+    \item[Mechanism:] Divide the intensity range into discrete bins. Count how many pixels fall into each bin.
+    \item[Normalization:] Divide by total pixel count to obtain a discrete probability distribution, making the feature invariant to image size.
+    \item[Strengths:] Invariant to translation and rotation. Robust to scaling and partial occlusion.
+    \item[Weakness:] Complete loss of spatial information---a red apple on green grass produces the same histogram as randomly scattered red and green pixels.
 \end{description}
 
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+import numpy as np
+
+img = cv2.imread("photo.jpg")
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Compute grayscale histogram: 256 bins over [0, 255]
+hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+hist_norm = hist / hist.sum()  # Normalize to probability
+
+# Per-channel color histogram
+for i, color in enumerate(["Blue", "Green", "Red"]):
+    h = cv2.calcHist([img], [i], None, [256], [0, 256])
+    print(f"{color} channel: mean bin count = {h.mean():.1f}")
+\end{lstlisting}
+
+\section*{Spatial Patching (Local Features)}
+
+To retain spatial context without the rigidity of full-image flattening, divide the image into a grid of \textbf{sub-regions (patches)} and compute features (histograms, mean intensity, texture statistics) per patch independently. This produces a feature vector that captures \textit{where} certain visual properties occur, bridging the gap between purely global and purely local representations.
+
+\section*{Spatial Filtering and Convolution}
+
+To extract structural features---edges, corners, textures---we apply local neighborhood operations by sliding a small weight matrix across the image.
+
+\begin{definition}[Kernel / Filter]
+A \textbf{kernel} $\mathbf{K}$ is a small matrix of weights (typically $3 \times 3$ or $5 \times 5$) that defines how a pixel's neighborhood influences its output value.
+\end{definition}
+
+\subsection*{Cross-Correlation vs.\ Convolution}
+
+Let $\mathbf{I}$ be the image and $\mathbf{K}$ a kernel of size $(2k+1) \times (2k+1)$.
+
+\begin{description}
+    \item[Cross-Correlation ($\otimes$):] The kernel slides directly over the image without flipping:
+    $$ G[i, j] = (\mathbf{I} \otimes \mathbf{K})[i, j] = \sum_{u=-k}^{k} \sum_{v=-k}^{k} \mathbf{K}[u, v] \cdot \mathbf{I}[i+u, j+v] $$
+    \item[Convolution ($*$):] The kernel is flipped both vertically and horizontally before multiplication. This ensures associativity in signal processing. In ML, the distinction is often irrelevant since kernels are learned:
+    $$ G[i, j] = (\mathbf{I} * \mathbf{K})[i, j] = \sum_{u=-k}^{k} \sum_{v=-k}^{k} \mathbf{K}[u, v] \cdot \mathbf{I}[i-u, j-v] $$
+\end{description}
 
 \subsection*{Padding and Stride}
-\begin{itemize}
-    \item \textbf{Padding:} Applying a filter reduces the spatial dimensions of the image. To preserve dimensions, we add artificial pixels around the border. Common strategies include \textit{Zero-padding} (adding zeros), \textit{Replicate} (copying edge pixels), and \textit{Reflect} (mirroring).
-    \item \textbf{Stride:} The step size with which the filter slides across the image. A stride $> 1$ results in spatial downsampling.
-\end{itemize}
+\begin{description}
+    \item[Padding:] Filtering shrinks spatial dimensions. To preserve them, add artificial border pixels: \textit{zero-padding} (zeros), \textit{replicate} (copy edge values), or \textit{reflect} (mirror).
+    \item[Stride:] The step size of the sliding kernel. Stride $> 1$ produces spatial downsampling.
+\end{description}
 
 \subsection*{Common Hand-Crafted Kernels}
 
 \begin{table}[h!]
 \centering
 \renewcommand{\arraystretch}{1.5}
-\begin{tabular}{|c|c|p{8cm}|}
+\begin{tabular}{|c|c|p{7.5cm}|}
 \hline
-\textbf{Filter Type} & \textbf{Example $3 \times 3$ Kernel} & \textbf{Purpose and Effect} \\
+\textbf{Filter} & \textbf{$3 \times 3$ Kernel} & \textbf{Effect} \\
 \hline
 \textbf{Box Blur} &
 $\frac{1}{9} \begin{bmatrix} 1 & 1 & 1 \\ 1 & 1 & 1 \\ 1 & 1 & 1 \end{bmatrix}$ &
-Averages the neighborhood. Smooths the image and acts as a low-pass filter, removing high-frequency noise but blurring edges. \\
+Uniform neighborhood average. Low-pass filter: removes high-frequency noise but blurs edges. \\
 \hline
 \textbf{Gaussian Blur} &
 $\frac{1}{16} \begin{bmatrix} 1 & 2 & 1 \\ 2 & 4 & 2 \\ 1 & 2 & 1 \end{bmatrix}$ &
-Weights central pixels more heavily than distant ones. Provides a more natural, rotationally symmetric smoothing compared to a box blur. \\
+Center-weighted smoothing. More natural, rotationally symmetric blur than box filter. \\
 \hline
 \textbf{Sharpen} &
 $\begin{bmatrix} 0 & -1 & 0 \\ -1 & 5 & -1 \\ 0 & -1 & 0 \end{bmatrix}$ &
-Enhances differences between a pixel and its neighbors. Acts as a high-pass filter, emphasizing edges and fine details. \\
+Amplifies pixel-neighbor differences. High-pass filter: emphasizes edges and fine details. \\
 \hline
 \end{tabular}
 \end{table}
 
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+import numpy as np
+
+img = cv2.imread("photo.jpg", cv2.IMREAD_GRAYSCALE)
+
+# Define and apply a sharpening kernel
+sharpen_k = np.array([[ 0, -1,  0],
+                       [-1,  5, -1],
+                       [ 0, -1,  0]], dtype=np.float32)
+sharpened = cv2.filter2D(img, -1, sharpen_k)
+
+# Gaussian blur (5x5 kernel, sigma auto-computed)
+blurred = cv2.GaussianBlur(img, (5, 5), 0)
+\end{lstlisting}
+
 \section*{Edge Detection and Gradients}
 
-Edges define the boundaries of objects. An edge is essentially a region in the image where there is a rapid change in pixel intensity. We can detect edges by computing the discrete derivative of the image.
+Edges are regions of rapid intensity change---they define object boundaries. We detect them by computing the \textbf{discrete derivative} of the image.
 
 \subsection*{Image Gradients}
-The gradient of an image $\mathbf{I}(x,y)$ is a vector containing the first-order partial derivatives:
-$$ \nabla \mathbf{I} = \begin{bmatrix} \frac{\partial \mathbf{I}}{\partial x} \\ \frac{\partial \mathbf{I}}{\partial y} \end{bmatrix} $$
-
-Since images are discrete, we approximate derivatives using finite differences (which can be implemented as convolution kernels).
+The gradient of $\mathbf{I}(x,y)$ is a vector of first-order partial derivatives:
+$$ \nabla \mathbf{I} = \begin{bmatrix} \frac{\partial \mathbf{I}}{\partial x} \\[4pt] \frac{\partial \mathbf{I}}{\partial y} \end{bmatrix} $$
+Since images are discrete, derivatives are approximated via \textbf{finite differences}, implementable as convolution kernels.
 
 \subsection*{Sobel Operators}
-The Sobel filters compute the gradient while applying a slight Gaussian smoothing to reduce noise.
+The Sobel filters compute the gradient while applying slight Gaussian smoothing to reduce noise:
 \begin{align*}
-\mathbf{K}_x &= \begin{bmatrix} -1 & 0 & 1 \\ -2 & 0 & 2 \\ -1 & 0 & 1 \end{bmatrix} \quad (\text{Detects vertical edges}) \\
-\mathbf{K}_y &= \begin{bmatrix} -1 & -2 & -1 \\ 0 & 0 & 0 \\ 1 & 2 & 1 \end{bmatrix} \quad (\text{Detects horizontal edges})
+\mathbf{K}_x &= \begin{bmatrix} -1 & 0 & 1 \\ -2 & 0 & 2 \\ -1 & 0 & 1 \end{bmatrix} \quad (\text{detects vertical edges---horizontal gradient}) \\[6pt]
+\mathbf{K}_y &= \begin{bmatrix} -1 & -2 & -1 \\ 0 & 0 & 0 \\ 1 & 2 & 1 \end{bmatrix} \quad (\text{detects horizontal edges---vertical gradient})
 \end{align*}
 
-Once we compute $G_x = \mathbf{I} * \mathbf{K}_x$ and $G_y = \mathbf{I} * \mathbf{K}_y$, we can derive two crucial features for every pixel:
+After computing $G_x = \mathbf{I} * \mathbf{K}_x$ and $G_y = \mathbf{I} * \mathbf{K}_y$, we derive two per-pixel features:
 \begin{description}
-    \item[Gradient Magnitude:] The strength of the edge.
+    \item[Gradient Magnitude:] Edge strength.
     $$ M = \sqrt{G_x^2 + G_y^2} $$
-    \item[Gradient Direction:] The orientation of the edge (perpendicular to the edge itself).
-    $$ \theta = \arctan\left(\frac{G_y}{G_x}\right) $$
+    \item[Gradient Direction:] Edge orientation (perpendicular to the edge).
+    $$ \theta = \arctan\!\left(\frac{G_y}{G_x}\right) $$
 \end{description}
 
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+import numpy as np
+
+img = cv2.imread("photo.jpg", cv2.IMREAD_GRAYSCALE)
+
+# Sobel gradients (64-bit float to capture negative values)
+G_x = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=3)  # dI/dx
+G_y = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=3)  # dI/dy
+
+# Gradient magnitude and direction
+magnitude = np.sqrt(G_x**2 + G_y**2)
+direction = np.arctan2(G_y, G_x)  # Radians in [-pi, pi]
+\end{lstlisting}
+
 \begin{remark}
-Gradient magnitudes and orientations form the foundation for advanced feature descriptors such as \textbf{HOG} (Histogram of Oriented Gradients) and \textbf{SIFT} (Scale-Invariant Feature Transform), which represent the state-of-the-art in classical Computer Vision feature engineering.
+Gradient magnitudes and orientations are the foundation for advanced classical descriptors: \textbf{HOG} (Histogram of Oriented Gradients) and \textbf{SIFT} (Scale-Invariant Feature Transform), which represent the state-of-the-art in pre-deep-learning computer vision.
 \end{remark}
 
 \subsection*{Canny Edge Detection Pipeline}
-A sophisticated, multi-stage algorithm for finding optimal edges:
+Canny is a multi-stage algorithm for producing clean, thin, well-localized edges:
 \begin{enumerate}
-    \item \textbf{Noise Reduction:} Apply a Gaussian blur to smooth the image.
-    \item \textbf{Gradient Calculation:} Use Sobel operators to find $M$ and $\theta$.
-    \item \textbf{Non-Maximum Suppression:} Thin the edges by suppressing any pixel that is not a local maximum in the direction of the gradient $\theta$.
-    \item \textbf{Hysteresis Thresholding:} Use two thresholds ($T_{high}$ and $T_{low}$). Pixels $> T_{high}$ are strong edges. Pixels between thresholds are weak edges and only kept if connected to a strong edge.
+    \item \textbf{Noise Reduction:} Apply Gaussian blur to suppress noise.
+    \item \textbf{Gradient Calculation:} Compute $M$ and $\theta$ via Sobel operators.
+    \item \textbf{Non-Maximum Suppression:} Thin edges by keeping only local maxima along the gradient direction $\theta$---suppresses all non-peak pixels.
+    \item \textbf{Hysteresis Thresholding:} Apply two thresholds $T_{\text{high}}$ and $T_{\text{low}}$. Pixels with $M > T_{\text{high}}$ are \textit{strong edges} (always kept). Pixels with $T_{\text{low}} < M < T_{\text{high}}$ are \textit{weak edges}, kept only if connected to a strong edge.
 \end{enumerate}
+
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+
+img = cv2.imread("photo.jpg", cv2.IMREAD_GRAYSCALE)
+
+# Canny edge detection with two thresholds
+edges = cv2.Canny(img, threshold1=100, threshold2=200)
+# edges is a binary image: 255 = edge, 0 = non-edge
+
+print(f"Edge pixels: {(edges > 0).sum()}")
+print(f"Edge density: {(edges > 0).mean():.3f}")
+\end{lstlisting}

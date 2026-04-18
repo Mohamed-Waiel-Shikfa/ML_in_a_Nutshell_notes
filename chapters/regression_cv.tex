@@ -1,0 +1,199 @@
+\chapter*{Regression Workflow, Overfitting, and Cross-Validation}
+\addcontentsline{toc}{chapter}{Regression Workflow, Overfitting, and Cross-Validation}
+
+\section*{A Regression Example: End-to-End Workflow}
+
+To ground the abstract ERM framework in a concrete workflow, consider a canonical regression task. We observe $m = 10$ noisy samples from an unknown function $f(x) = \sin(2\pi x)$, where $x \in [0,1]$ and $t \in [-1,1]$. The dataset is:
+$$D = \{(x_i, t_i)\}_{i=1}^{m}, \quad t_i = \sin(2\pi x_i) + \epsilon_i$$
+where $\epsilon_i$ is random noise. The goal: learn $f: X \to T$ from $D$ alone---without knowing the true generating function.
+
+\subsection*{Step 1: Choose the Hypothesis Class $\mathcal{H}$}
+
+We hypothesize that $f$ belongs to the family of \textbf{polynomial functions of degree $M$}:
+$$f_{\boldsymbol{\theta}}(x) = \theta_0 + \theta_1 x + \theta_2 x^2 + \cdots + \theta_M x^M = \sum_{j=0}^{M} \theta_j x^j$$
+with parameter vector $\boldsymbol{\theta} \in \mathbb{R}^{M+1}$. Two critical observations:
+\begin{itemize}
+    \item $M$ controls the \textbf{complexity/capacity} of the hypothesis class. Higher $M$ means more expressive models.
+    \item The model is \textbf{linear in its parameters} $\boldsymbol{\theta}$ (even though it is non-linear in $x$), so standard linear algebra solvers apply.
+    \item A degree-$M$ polynomial has $M+1$ free parameters to learn.
+\end{itemize}
+
+\subsection*{Step 2: Define the Loss Function}
+
+\begin{definition}[Sum of Squared Errors (SSE)]
+$$\text{SSE}(\boldsymbol{\theta}) = \frac{1}{2} \sum_{i=1}^{m} \left( f_{\boldsymbol{\theta}}(x_i) - t_i \right)^2$$
+\end{definition}
+
+\begin{definition}[Root Mean Square Error (RMSE)]
+$$\text{RMSE}(\boldsymbol{\theta}) = \sqrt{\frac{\text{SSE}(\boldsymbol{\theta})}{m}}$$
+RMSE normalizes by dataset size and has the same units as the target, making it interpretable and comparable across datasets of different sizes. This serves as our empirical loss $L_{\text{emp}}$.
+\end{definition}
+
+\subsection*{Step 3: Train (Minimize $L_{\text{emp}}$)}
+
+For each choice of $M$, we solve $\boldsymbol{\theta}^* = \arg\min_{\boldsymbol{\theta}} \text{SSE}(\boldsymbol{\theta})$ using least-squares. The following snippet fits polynomials of varying degrees to the $\sin(2\pi x)$ dataset:
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+from numpy.polynomial import polynomial as P
+
+# Generate noisy sin(2*pi*x) data
+np.random.seed(0)
+x = np.linspace(0, 1, 10)
+t = np.sin(2 * np.pi * x) + np.random.randn(10) * 0.3
+
+# Fit polynomials of degree M = 0, 1, 3, 9
+for M in [0, 1, 3, 9]:
+    coeffs = np.polyfit(x, t, M)    # Least-squares fit
+    p = np.poly1d(coeffs)           # Callable polynomial
+    residuals = p(x) - t
+    rmse = np.sqrt(np.mean(residuals**2))
+    print(f"M={M}: RMSE={rmse:.4f}, params={M+1}")
+\end{lstlisting}
+
+\begin{remark}[Parameters vs.\ Data Points]
+A degree-$M$ polynomial has $M+1$ parameters. With $m = 10$ data points: $M = 0$ has 1 parameter (constant), $M = 1$ has 2 (line), $M = 3$ has 4 (cubic), and $M = 9$ has 10---exactly as many parameters as data points.
+\end{remark}
+
+\section*{Overfitting vs.\ Generalization}
+
+Training error ($L_{\text{emp}}$ on $D$) tells us how well the model fits the data it has seen. But the real question is: \textit{how will it perform on new, unseen data?}
+
+\subsection*{The Core Phenomenon}
+
+As model complexity $M$ increases:
+\begin{enumerate}
+    \item \textbf{Training RMSE decreases monotonically.} More parameters $\Rightarrow$ more capacity to fit the training points. At $M = 9$ with $m = 10$ points, the polynomial passes through \textit{every} data point: $\text{RMSE}_{\text{train}} = 0$.
+    \item \textbf{Validation RMSE first decreases, then rapidly increases.} The model begins fitting the noise rather than the underlying signal.
+\end{enumerate}
+
+\begin{definition}[Overfitting]
+\textbf{Overfitting} occurs when a model fits too closely to the training data---learning the noise, not the signal---resulting in excellent training performance but poor generalization to unseen data. Overfitting defeats the fundamental purpose of ML.
+\end{definition}
+
+\begin{remark}[When Does Overfitting Occur?]
+Overfitting depends on the relationship between \textbf{model complexity} and \textbf{data quantity}:
+\begin{itemize}
+    \item When $M \geq m$ (parameters $\geq$ data points), the model can interpolate every training point perfectly, almost certainly overfitting.
+    \item When $N \gg M$ (much more data than parameters), even complex models can generalize well---there is enough signal to constrain the parameters.
+    \item Simpler models tend to prevent overfitting and generalize better. This principle motivates \textbf{regularization} and connects to Occam's razor: prefer the simplest hypothesis consistent with the data.
+\end{itemize}
+\end{remark}
+
+\subsection*{The Sweet Spot}
+
+The optimal model complexity corresponds to the point where:
+\begin{itemize}
+    \item Validation error is near its \textbf{minimum}, and
+    \item Training error is reasonably low (but \textit{not} zero---a zero training error on noisy data is a red flag).
+\end{itemize}
+
+\section*{Model Selection: The Bias-Variance Tradeoff}
+
+The tension between underfitting and overfitting is formalized by the \textbf{bias-variance tradeoff}:
+
+\begin{description}
+    \item[Bias:] Error from overly simplistic assumptions in the hypothesis class. High bias $\Rightarrow$ the model systematically misses the true pattern (\textbf{underfitting}).
+    \item[Variance:] Error from excessive sensitivity to the specific training set. High variance $\Rightarrow$ the model changes drastically with different samples (\textbf{overfitting}).
+\end{description}
+
+Increasing complexity \textit{reduces} bias but \textit{increases} variance. The goal of model selection is to find the complexity that minimizes the \textbf{total} generalization error, which is approximately $\text{Bias}^2 + \text{Variance} + \text{irreducible noise}$.
+
+\section*{The Hold-Out Method}
+
+The simplest approach to estimating generalization error: split the available data into two disjoint sets.
+
+\begin{definition}[Hold-Out Method]
+Partition the dataset into:
+\begin{itemize}
+    \item \textbf{Training set} $D$: used to learn parameters $\boldsymbol{\theta}^*$.
+    \item \textbf{Test set} $T$: used to evaluate $L_{\text{emp}}(T)$ as an estimate of $L_{\text{gen}}$.
+\end{itemize}
+The fundamental rationale: evaluate the model on data \textbf{independent} from the data used for training.
+\end{definition}
+
+\begin{remark}[Drawbacks of Hold-Out]
+\begin{itemize}
+    \item \textbf{Wastes data:} test examples are never used for training, which hurts performance when data is scarce.
+    \item \textbf{High variance:} a single (un)fortunate split can produce a misleading estimate of generalization error.
+    \item \textbf{Split dependency:} results can vary significantly depending on which examples end up in which set.
+\end{itemize}
+\end{remark}
+
+\section*{Cross-Validation (CV)}
+
+\textbf{Cross-validation} overcomes the limitations of hold-out by iterating the split-train-evaluate procedure $K$ times, rotating which data plays the training and validation roles.
+
+\subsection*{$K$-Fold Cross-Validation}
+
+\begin{definition}[$K$-Fold CV]
+Partition the dataset into $K$ equal-sized \textbf{folds} $F_1, F_2, \ldots, F_K$. For each fold $k = 1, \ldots, K$:
+\begin{enumerate}
+    \item \textbf{Train} on all folds except $F_k$: $D_{\text{train}} = D \setminus F_k$.
+    \item \textbf{Validate} on $F_k$: compute $L_{\text{emp}}(F_k)$.
+\end{enumerate}
+The CV estimate of generalization error is the average across folds:
+$$L_{\text{CV}} = \frac{1}{K} \sum_{k=1}^{K} L_{\text{emp}}(F_k)$$
+\end{definition}
+
+Every data point serves as a validation example exactly once and as a training example $K-1$ times. Common choice: $K = 5$ or $K = 10$.
+
+\subsection*{Variants}
+
+\begin{description}
+    \item[Leave-One-Out CV (LOOCV):] The extreme case $K = N$. Each fold contains a single example. Maximizes training data per fold but is computationally expensive ($N$ training runs) and can have high variance for small datasets.
+    \item[Random Subsampling CV:] Instead of deterministic partitions, randomly sample training/validation splits each iteration. More flexible but some points may never appear in validation.
+\end{description}
+
+\begin{remark}[Formal Guarantees]
+Under mild conditions and reasonably large datasets, CV provides not just an empirical estimate of generalization error, but comes with formal bounds relating the CV estimate to the true (unknown) $L_{\text{gen}}$.
+\end{remark}
+
+\subsection*{$K$-Fold CV with \texttt{sklearn}}
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import cross_val_score
+
+# Generate noisy sin(2*pi*x) data
+np.random.seed(0)
+X = np.linspace(0, 1, 30).reshape(-1, 1)
+y = np.sin(2 * np.pi * X).ravel() + np.random.randn(30) * 0.3
+
+# Compare polynomial degrees via 5-fold CV
+for M in [1, 3, 5, 9]:
+    model = make_pipeline(
+        PolynomialFeatures(M), LinearRegression()
+    )
+    # neg_mean_squared_error: sklearn negates so higher=better
+    scores = cross_val_score(
+        model, X, y, cv=5, scoring='neg_mean_squared_error'
+    )
+    rmse_scores = np.sqrt(-scores)
+    print(f"M={M}: CV RMSE = {rmse_scores.mean():.3f}"
+          f" (+/- {rmse_scores.std():.3f})")
+\end{lstlisting}
+
+\section*{The General Model Selection Pipeline}
+
+In practice, model selection combines hold-out and cross-validation in a principled pipeline:
+
+\begin{enumerate}
+    \item \textbf{Initial split (Hold-Out):} Partition the full dataset into a \textbf{Training set} and a \textbf{Test set}. The test set is locked away---untouched until the very end.
+    \item \textbf{Internal CV:} Further split the Training set into internal training folds and validation folds using $K$-Fold CV.
+    \item \textbf{Train and validate candidates:} For each candidate model (varying hyperparameters, algorithms, or complexity), run the full CV loop. Record each model's estimated generalization error $L_{\text{CV}}$.
+    \item \textbf{Select the best model:} Choose the candidate with the lowest $L_{\text{CV}}$.
+    \item \textbf{Retrain on full Training set:} Retrain the selected model using the \textit{entire} Training set (all folds combined) to maximize the data available for learning.
+    \item \textbf{Final evaluation on Test set:} Evaluate the retrained model on the held-out Test set. This is the unbiased estimate of deployment performance. If the test error is much larger than $L_{\text{CV}}$, reconsider the candidate models or data pipeline.
+\end{enumerate}
+
+\begin{remark}[Why Retrain?]
+After CV selects the best model \textit{type} (e.g., $M = 3$), we retrain on all training data because CV only used $\frac{K-1}{K}$ of it per fold. The final model benefits from every available training example.
+\end{remark}
+
+\begin{remark}[Test Set Discipline]
+The test set must remain untouched during model selection. If you use test performance to choose between models, it becomes a validation set---and your generalization estimate becomes optimistically biased. This is a common and serious methodological error.
+\end{remark}

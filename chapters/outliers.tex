@@ -1,0 +1,194 @@
+\chapter*{Outliers: Detection and Handling}
+\addcontentsline{toc}{chapter}{Outliers: Detection and Handling}
+
+\section*{What Are Outliers?}
+
+\begin{definition}[Outlier]
+An \textbf{outlier} (or \textbf{anomaly}) is an observation that deviates significantly from the large majority of other observations in a dataset. Formally, given a dataset $\mathcal{D} = \{\xx^{(1)}, \dots, \xx^{(N)}\}$, a point $\xx^{(i)}$ is an outlier if it lies in a low-probability region of the data-generating distribution $P(\xx)$.
+\end{definition}
+
+Outliers are not inherently bad. They fall into two broad categories:
+
+\begin{description}
+    \item[Erroneous outliers:] Artifacts of data entry mistakes, sensor malfunctions, software bugs, transcription errors, or sampling from wrong sources. These should typically be removed or corrected.
+    \item[Genuine outliers:] True but rare phenomena---a legitimate signal in the data (e.g., a fraudulent transaction, a once-in-a-century flood, Messi in the population of soccer players). These are often the most \textit{interesting} points and should be preserved.
+\end{description}
+
+\begin{remark}[Impact on ML Models]
+Outliers distort sample means, inflate variance estimates, skew regression lines, and degrade model performance. However, not all models are equally vulnerable:
+\begin{itemize}
+    \item \textbf{Highly sensitive:} Linear regression (OLS), kNN, SVMs with RBF kernels, PCA.
+    \item \textbf{More robust:} Tree-based models (decision trees, random forests, gradient boosting), models trained with $L_1$ loss, median-based estimators.
+\end{itemize}
+A single outlier can shift the OLS regression line dramatically because the squared loss $\ell = (y - \hat{y})^2$ amplifies large residuals. Tree-based models split on rank-order statistics, making them largely indifferent to extreme values.
+\end{remark}
+
+\section*{Types of Outliers}
+
+\begin{description}
+    \item[Global outlier:] A point that deviates significantly from \textit{the entire dataset}. Example: a salary of \$10M in a dataset where most values are \$40K--\$120K.
+    \item[Contextual outlier:] A point that is anomalous only within a specific context. Example: a temperature of 35\textdegree C is normal in summer but anomalous in winter for the same city.
+    \item[Collective outlier:] A group of observations that are individually normal but collectively anomalous. Example: a sudden burst of 100 identical purchases within one second.
+\end{description}
+
+
+\section*{Detecting Outliers}
+
+Detection methods split into three families: \textbf{visual}, \textbf{statistical}, and \textbf{model-based}.
+
+\subsection*{Visual Methods}
+
+Quick, exploratory, and useful before any formal analysis:
+
+\begin{description}
+    \item[Box plots:] Display the median, quartiles ($Q_1$, $Q_3$), and \textbf{whiskers} extending to $Q_1 - 1.5 \cdot \text{IQR}$ and $Q_3 + 1.5 \cdot \text{IQR}$, where $\text{IQR} = Q_3 - Q_1$. Points beyond the whiskers are flagged as outliers.
+    \item[Scatter plots:] In two dimensions, outliers appear as isolated points far from the main cluster. Useful for spotting multivariate outliers that per-feature methods miss.
+    \item[Histograms:] Long tails or isolated bars far from the bulk of the distribution signal potential outliers.
+\end{description}
+
+\begin{lstlisting}[style=pythonstyle]
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.DataFrame({"value": [10, 12, 12, 13, 12, 11, 14, 13, 15, 102]})
+df.boxplot(column="value")          # Outlier (102) appears as a dot
+plt.title("Box Plot Outlier Detection")
+plt.show()
+\end{lstlisting}
+
+
+\subsection*{Statistical Methods}
+
+\subsubsection*{Z-Score Method (Parametric)}
+
+\begin{definition}[Z-Score]
+The \textbf{z-score} of an observation $x$ standardizes it relative to the sample mean $\mu$ and standard deviation $\sigma$:
+$$z = \frac{x - \mu}{\sigma}$$
+A common rule flags $x$ as an outlier if $|z| > 3$, since under a normal distribution $\approx 99.7\%$ of data falls within $\pm 3\sigma$.
+\end{definition}
+
+\begin{remark}[Limitation]
+The z-score method \textbf{assumes approximate normality}. It is also self-defeating: outliers inflate $\mu$ and $\sigma$, which can \textit{mask} other outliers (the masking effect). For heavy-tailed or skewed distributions, prefer the modified z-score or IQR method.
+\end{remark}
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+
+data = np.array([10, 12, 12, 13, 12, 11, 14, 13, 15, 102])
+z_scores = (data - data.mean()) / data.std()
+outliers = data[np.abs(z_scores) > 3]   # Points with |z| > 3
+print(f"Outliers: {outliers}")           # [102]
+\end{lstlisting}
+
+\subsubsection*{Modified Z-Score (Robust)}
+
+Replace mean and standard deviation with their robust counterparts---the \textbf{median} and the \textbf{Median Absolute Deviation (MAD)}:
+$$\text{MAD} = \text{median}\left(|x_i - \widetilde{x}|\right), \qquad M_i = \frac{0.6745\,(x_i - \widetilde{x})}{\text{MAD}}$$
+where $\widetilde{x}$ is the median and 0.6745 is the $z$-value at the 75th percentile of the standard normal. Flag if $|M_i| > 3.5$. Because the median is unaffected by extreme values, this method resists the masking effect.
+
+\subsubsection*{IQR Method (Non-Parametric)}
+
+\begin{definition}[Interquartile Range]
+The \textbf{IQR} is the difference between the third and first quartiles:
+$$\text{IQR} = Q_3 - Q_1$$
+The ``normal'' range is defined as $[Q_1 - k \cdot \text{IQR},\; Q_3 + k \cdot \text{IQR}]$ with $k = 1.5$ for standard outliers and $k = 3$ for extreme outliers. Any observation outside this range is flagged.
+\end{definition}
+
+This method makes \textbf{no distributional assumptions} and is robust to skewness. It is the method underlying box plot whiskers.
+
+\begin{lstlisting}[style=pythonstyle]
+import pandas as pd
+
+s = pd.Series([10, 12, 12, 13, 12, 11, 14, 13, 15, 102])
+Q1, Q3 = s.quantile(0.25), s.quantile(0.75)
+IQR = Q3 - Q1
+lower, upper = Q1 - 1.5 * IQR, Q3 + 1.5 * IQR
+clean = s[(s >= lower) & (s <= upper)]  # Remove outliers
+print(f"Bounds: [{lower:.1f}, {upper:.1f}]")
+print(f"Kept {len(clean)}/{len(s)} points")
+\end{lstlisting}
+
+\subsubsection*{Percentile-Based Clipping}
+
+A simpler non-parametric approach: flag values below the 1st percentile or above the 99th percentile. This is distribution-free but discards a fixed fraction of data regardless of whether true outliers exist.
+
+
+\subsection*{Model-Based Methods}
+
+When statistical methods are insufficient---especially in high-dimensional or non-Gaussian settings---ML models can learn the boundary between normal and anomalous.
+
+\begin{description}
+    \item[Isolation Forest:] Builds an ensemble of random trees that recursively partition feature space by random splits. Outliers are \textit{easier to isolate}: they require fewer splits to be separated from the rest. The \textbf{anomaly score} is proportional to the average path length from root to the isolated point---shorter paths indicate higher anomaly.
+    \item[Local Outlier Factor (LOF):] Compares the \textbf{local density} of a point to the density of its $k$-nearest neighbors. A point whose neighborhood is much sparser than its neighbors' neighborhoods receives a high LOF score ($\gg 1$). This detects outliers that are anomalous \textit{relative to their local context}, unlike global methods.
+    \item[DBSCAN:] A density-based clustering algorithm. Points in dense regions are assigned to clusters; points that do not belong to any cluster (i.e., fall in low-density regions) are labeled as noise/outliers. No predefined number of clusters is needed.
+\end{description}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.ensemble import IsolationForest
+import numpy as np
+
+np.random.seed(42)
+X = np.random.randn(100, 2)            # Normal data
+X = np.vstack([X, [[10, 10], [-8, -8]]])  # Add 2 outliers
+
+iso = IsolationForest(contamination=0.02, random_state=42)
+labels = iso.fit_predict(X)             # 1 = inlier, -1 = outlier
+outliers = X[labels == -1]
+print(f"Detected {len(outliers)} outliers")
+\end{lstlisting}
+
+
+\section*{Handling Outliers}
+
+Detection alone is not enough---you must decide what to \textit{do} with flagged points. The right action depends on \textbf{why} the outlier exists.
+
+\begin{description}
+    \item[Remove:] Delete the outlier rows entirely. Appropriate when outliers are clearly erroneous (e.g., a negative age, a temperature of 9999). Risky if the ``outlier'' is a genuine rare event.
+    \item[Cap / Winsorize:] Clip extreme values to a chosen percentile boundary (e.g., cap at the 1st and 99th percentiles). Preserves the observation while limiting its influence. Named after biostatistician Charles Winsor.
+    \item[Transform:] Apply a concave transformation---$\log(x)$, $\sqrt{x}$, or Box-Cox---to compress the right tail and reduce skewness. This pulls extreme values closer to the bulk without discarding them.
+    \item[Impute:] Replace the outlier value with a robust statistic such as the median or the nearest IQR boundary. Useful when you cannot afford to lose the row (e.g., multivariate data where other features are valid).
+    \item[Use robust models:] Instead of fixing the data, choose models that are inherently less sensitive: tree-based models, Huber loss regression, $L_1$ (least absolute deviations) regression, or median regression (quantile regression at $\tau = 0.5$).
+    \item[Keep:] If the outlier is genuine and informative---a fraud case, a rare disease, a system anomaly---\textbf{keep it}. Removing real signal degrades model quality. Consider gathering more data around the rare event or using anomaly-aware models.
+\end{description}
+
+\begin{remark}[Decision Heuristic]
+Ask three questions: (1) Is the outlier a data error? $\to$ Remove or impute. (2) Is it a real but irrelevant extreme? $\to$ Cap or transform. (3) Is it a real and informative event? $\to$ Keep it, and ensure your model can handle it.
+\end{remark}
+
+
+\section*{Feature-Wise vs.\ Multivariate Outliers}
+
+All methods discussed so far can be applied per-feature (\textbf{univariate analysis}). However, a critical subtlety arises in multidimensional data:
+
+\begin{remark}[Multivariate Outliers]
+A point can appear perfectly normal in every individual feature yet be an outlier \textit{in combination}. For example, a person who is 190\,cm tall and weighs 55\,kg: both height and weight are individually within normal ranges, but their combination is unusual.
+\end{remark}
+
+\begin{definition}[Mahalanobis Distance]
+The \textbf{Mahalanobis distance} measures how far a point $\xx$ is from the center of a distribution, accounting for correlations between features:
+$$D_M(\xx) = \sqrt{(\xx - \boldsymbol{\mu})^T \boldsymbol{\Sigma}^{-1} (\xx - \boldsymbol{\mu})}$$
+where $\boldsymbol{\mu}$ is the mean vector and $\boldsymbol{\Sigma}$ is the covariance matrix. Under multivariate normality, $D_M^2$ follows a $\chi^2$ distribution with $d$ degrees of freedom, providing a principled threshold for flagging multivariate outliers.
+\end{definition}
+
+Univariate methods applied feature-by-feature will \textbf{miss} these multivariate outliers. When features are correlated, always consider multivariate detection methods: Mahalanobis distance, Isolation Forest (which naturally operates in full feature space), or LOF.
+
+
+\section*{Summary: Detection Method Selection}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{3.2cm} p{3.8cm} p{4.5cm}}
+\toprule
+\textbf{Method} & \textbf{Assumptions} & \textbf{Best For} \\
+\midrule
+Z-Score & Normal distribution & Low-dimensional, Gaussian data \\
+Modified Z-Score & None (uses median/MAD) & Skewed or contaminated data \\
+IQR / Box plot & None & Quick exploratory analysis \\
+Percentile clipping & None & Simple, fixed-fraction trimming \\
+Isolation Forest & None & High-dimensional, mixed types \\
+LOF & None & Local density variations \\
+DBSCAN & Density-reachable clusters & Cluster-based anomaly detection \\
+Mahalanobis & Multivariate normal & Correlated features \\
+\bottomrule
+\end{tabular}
+\end{center}

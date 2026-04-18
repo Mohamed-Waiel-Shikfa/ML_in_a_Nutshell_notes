@@ -1,98 +1,181 @@
 \chapter*{Linear Models: Definitions, Properties, and Training}
 \addcontentsline{toc}{chapter}{Linear Models: Definitions, Properties, and Training}
 
-\section*{Introduction to Linear Models}
+\section*{Linear Model Definition}
 
-Linear models operate under the hypothesis that the target output can be well-described by a weighted linear combination of the input features. Despite their simplicity, they are fundamental, interpretable, and serve as the building blocks for more complex algorithms like neural networks.
+Linear models hypothesize that the target output is a weighted linear combination of input features.
 
 \begin{definition}[Linear Model]
-For an input vector $\xx = [x_1, x_2, \dots, x_d]^T$ with $d$ features, the linear model outputs a prediction $f_{\mathbf{w}}(\xx)$ computed as:
-$$f_{\mathbf{w}}(\xx) = w_1x_1 + w_2x_2 + \dots + w_dx_d + w_0 = \mathbf{w}^T \xx + w_0$$
-where $\mathbf{w} = [w_1, \dots, w_d]^T$ is the weight vector and $w_0$ is the bias (or intercept) term.
+For input $\xx = [x_1, x_2, \dots, x_d]^T \in \mathbb{R}^d$, the linear model predicts:
+$$f_{\mathbf{w}}(\xx) = w_1 x_1 + w_2 x_2 + \cdots + w_d x_d + w_0 = \mathbf{w}^T \xx + w_0$$
+where $\mathbf{w} = [w_1, \dots, w_d]^T$ is the \textbf{weight vector} and $w_0$ is the \textbf{bias} (intercept).
 \end{definition}
 
 \begin{remark}[Extended Feature Vector]
-To simplify notation and avoid treating the bias $w_0$ separately, we typically augment the input vector with a constant $1$.
-Let $\xx' = [1, x_1, \dots, x_d]^T$ and $\mathbf{w}' = [w_0, w_1, \dots, w_d]^T$. The prediction becomes a simple dot product:
+To absorb the bias into the dot product, augment the input with a constant $1$:
+$$\xx' = [1, x_1, \dots, x_d]^T, \quad \mathbf{w}' = [w_0, w_1, \dots, w_d]^T$$
 $$f_{\mathbf{w}}(\xx) = (\mathbf{w}')^T \xx'$$
+This compact form treats all parameters uniformly---no special handling for $w_0$.
 \end{remark}
 
-\section*{Classification vs. Regression}
+\begin{lstlisting}[style=pythonstyle]
+# Linear regression with sklearn
+from sklearn.linear_model import LinearRegression
+import numpy as np
 
-The interpretation of the linear output $f_{\mathbf{w}}(\xx)$ depends on the task:
+model = LinearRegression()         # f(x) = w^T x + w_0
+model.fit(X_train, y_train)        # Learn optimal weights
+print(f"w = {model.coef_}")        # Weight vector
+print(f"w_0 = {model.intercept_}") # Bias term
+y_pred = model.predict(X_test)     # Predict on new data
+\end{lstlisting}
+
+\section*{Classification vs.\ Regression}
+
+The raw output $f_{\mathbf{w}}(\xx) \in \mathbb{R}$ is continuous. Its interpretation depends on the task:
 
 \begin{description}
-    \item[Regression:] The target output is a continuous curve fitting the data. The prediction is simply the raw output of the linear model: $\hat{y} = f_{\mathbf{w}}(\xx)$.
-    \item[Classification:] The target output is a linear decision boundary (a hyperplane) that separates classes. For binary classification ($y \in \{-1, +1\}$), the prediction is the sign of the model's output: $\hat{y} = \text{sgn}(f_{\mathbf{w}}(\xx))$.
+    \item[Regression:] The prediction is the raw output: $\hat{y} = f_{\mathbf{w}}(\xx)$. The model fits a linear curve to continuous targets.
+    \item[Binary Classification:] The prediction is the \textbf{sign} of the output: $\hat{y} = \text{sgn}(f_{\mathbf{w}}(\xx)) \in \{-1, +1\}$. The model defines a linear decision boundary (hyperplane) separating classes.
 \end{description}
 
+Geometrically, $\mathbf{w}$ is orthogonal to the decision hyperplane $f_{\mathbf{w}}(\xx) = 0$, and the bias $w_0$ shifts it away from the origin. Points on one side yield $f > 0$ (class $+1$), and on the other $f < 0$ (class $-1$).
+
+\begin{lstlisting}[style=pythonstyle]
+# Binary classification with sign of linear output
+import numpy as np
+
+w = np.array([0.5, -1.0])   # Weight vector
+b = -2.0                     # Bias
+x = np.array([4.0, 2.0])    # Test input
+score = w @ x + b            # f_w(x) = 0.5*4 + (-1)*2 - 2 = -2
+y_hat = np.sign(score)       # sgn(-2) = -1 -> class -1
+\end{lstlisting}
+
+\subsection*{Score and Functional Margin}
+
 \begin{definition}[Functional Margin]
-In binary classification, the \textbf{functional margin} is defined as $y \cdot f_{\mathbf{w}}(\xx)$, where $y \in \{-1, +1\}$ is the true label.
+For binary classification with $y \in \{-1, +1\}$, the \textbf{functional margin} of example $(\xx, y)$ is:
+$$\mu(\xx) = y \cdot f_{\mathbf{w}}(\xx)$$
 \begin{itemize}
-    \item If $y \cdot f_{\mathbf{w}}(\xx) > 0$, the prediction is \textbf{correct} (the sign of the prediction matches the true label).
-    \item If $y \cdot f_{\mathbf{w}}(\xx) < 0$, the prediction is \textbf{incorrect}.
+    \item $\mu > 0$: prediction is \textbf{correct} (score sign matches true label).
+    \item $\mu < 0$: prediction is \textbf{incorrect}.
+    \item $|\mu|$: the \textbf{confidence}---how far $\xx$ lies from the decision boundary.
 \end{itemize}
-The magnitude of the margin $|f_{\mathbf{w}}(\xx)|$ represents the \textit{confidence} of the prediction.
+The \textbf{geometric margin} normalizes by $\|\mathbf{w}\|$, giving the true Euclidean distance to the boundary:
+$$\text{geometric margin}(\xx) = \frac{\mu(\xx)}{\|\mathbf{w}\|}$$
 \end{definition}
 
 \section*{Non-Linear Feature Transformations}
 
-What if the data is not linearly separable or linearly distributed? We can still use linear models by applying a \textbf{feature transformation}.
+Raw features may not be linearly separable. The key insight: map inputs to a higher-dimensional space where linear separation becomes possible.
 
-\begin{remark}
-We can map the original feature vector $\xx$ into a higher-dimensional space using a non-linear function $\phi(\xx)$. For example, if $\xx = [x_1, x_2]^T$, we could transform it into polynomial features:
-$$\phi(\xx) = [1, x_1, x_2, x_1^2, x_2^2, x_1x_2]^T$$
-The model $f_{\mathbf{w}}(\xx) = \mathbf{w}^T \phi(\xx)$ is \textbf{linear in the transformed parameter space}, but represents a \textbf{non-linear boundary/curve in the original input space}.
+\begin{definition}[Feature Transformation]
+A \textbf{feature map} $\Phi: \mathbb{R}^d \to \mathbb{R}^m$ transforms the input into $m$ basis functions $\phi_1(\xx), \dots, \phi_m(\xx)$. The model becomes:
+$$f_{\mathbf{w}}(\xx) = \mathbf{w}^T \Phi(\xx) = \sum_{j=1}^{m} w_j \phi_j(\xx) + w_0$$
+This is \textbf{linear in the transformed space} $\mathbb{R}^m$ but \textbf{non-linear in the original space} $\mathbb{R}^d$.
+\end{definition}
+
+\begin{remark}[Polynomial Features]
+For $\xx = [x_1, x_2]^T$, a degree-2 polynomial transformation produces:
+$$\Phi(\xx) = [1,\; x_1,\; x_2,\; x_1^2,\; x_1 x_2,\; x_2^2]^T$$
+More generally, polynomial basis functions of degree $p$ with $d$-dimensional input yield $\binom{d+p}{p}$ features. Higher degrees give more expressive power but risk overfitting.
 \end{remark}
+
+\begin{remark}[Basis Functions]
+Common choices include polynomial bases ($\phi_k(x) = x^k$), Fourier bases ($\sin(kx), \cos(kx)$), and radial basis functions. In principle, a complete basis can approximate any function to arbitrary precision, but this may require infinitely many features---motivating the kernel trick (covered later).
+\end{remark}
+
+\begin{lstlisting}[style=pythonstyle]
+# Polynomial feature transformation
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import make_pipeline
+
+X = np.array([[1], [2], [3], [4]])  # 1D input
+y = np.array([1, 4, 9, 16])         # y = x^2
+
+# Degree-2 poly: [1, x, x^2] -> linear in transformed space
+poly_model = make_pipeline(
+    PolynomialFeatures(degree=2),    # phi(x) = [1, x, x^2]
+    LinearRegression()               # w^T phi(x)
+)
+poly_model.fit(X, y)
+\end{lstlisting}
 
 \section*{Training: Empirical Risk Minimization}
 
-Training a linear model means finding the optimal weights $\mathbf{w}^*$ that minimize the error over the training dataset. This is formalized as Empirical Risk Minimization (ERM).
+Training finds weights $\mathbf{w}^*$ minimizing average loss over $N$ training examples.
 
-\begin{definition}[Empirical Risk Minimization]
-The goal is to find $\mathbf{w}$ that minimizes the average loss over the $N$ training examples:
-$$\mathbf{w}^* = \arg\min_{\mathbf{w}} \frac{1}{N} \sum_{i=1}^N \ell\left(f_{\mathbf{w}}(\xx^{(i)}), y^{(i)}\right)$$
-where $\ell(\hat{y}, y)$ is the \textbf{loss function} measuring the penalty for a bad prediction.
+\begin{definition}[ERM for Linear Models]
+$$\mathbf{w}^* = \arg\min_{\mathbf{w}} \frac{1}{N} \sum_{i=1}^{N} \ell\!\left(f_{\mathbf{w}}(\xx^{(i)}),\; y^{(i)}\right)$$
+where $\ell(\hat{y}, y)$ is the \textbf{loss function}. The choice of $\ell$ determines the solution's properties and the difficulty of the optimization problem.
 \end{definition}
 
-\subsection*{Common Loss Functions}
+\subsection*{Loss Functions for Regression}
 
-\textbf{For Regression ($y \in \mathbb{R}$):}
+For continuous targets $y \in \mathbb{R}$:
 \begin{description}
-    \item[Squared Loss ($L_2$ Loss):] $\ell(\hat{y}, y) = (y - \hat{y})^2$. Strongly penalizes large outliers. Used in Ordinary Least Squares (OLS).
-    \item[Absolute Loss ($L_1$ Loss):] $\ell(\hat{y}, y) = |y - \hat{y}|$. More robust to outliers.
+    \item[Squared Loss ($L_2$):] $\ell(\hat{y}, y) = (y - \hat{y})^2$. Strongly penalizes outliers. Yields Ordinary Least Squares (OLS). Differentiable everywhere.
+    \item[Absolute Loss ($L_1$):] $\ell(\hat{y}, y) = |y - \hat{y}|$. Robust to outliers. Non-differentiable at $\hat{y} = y$.
 \end{description}
 
-\textbf{For Classification ($y \in \{-1, +1\}$, margin $\mu = y f_{\mathbf{w}}(\xx)$):}
+\subsection*{Loss Functions for Classification}
+
+For binary labels $y \in \{-1, +1\}$, losses are defined in terms of the margin $\mu = y \cdot f_{\mathbf{w}}(\xx)$:
 \begin{description}
-    \item[0-1 Loss:] $\ell(\mu) = 1$ if $\mu < 0$, else $0$. Ideal but computationally intractable (non-differentiable step function).
-    \item[Hinge Loss:] $\ell(\mu) = \max(0, 1 - \mu)$. Used in Support Vector Machines (SVM).
-    \item[Logistic Loss:] $\ell(\mu) = \log(1 + e^{-\mu})$. Smooth, differentiable convex surrogate. Used in Logistic Regression.
-    \item[Exponential Loss:] $\ell(\mu) = e^{-\mu}$. Highly sensitive to misclassifications. Used in AdaBoost.
+    \item[0--1 Loss:] $\ell(\mu) = \mathbf{1}[\mu < 0]$. Ideal metric but \textbf{non-convex} and non-differentiable---computationally intractable.
+    \item[Hinge Loss:] $\ell(\mu) = \max(0, 1 - \mu)$. Convex surrogate for 0--1 loss. Used in \textbf{Support Vector Machines}. Penalizes even correct predictions with margin $< 1$.
+    \item[Logistic Loss:] $\ell(\mu) = \log(1 + e^{-\mu})$. Smooth, differentiable, convex. Used in \textbf{Logistic Regression}. Never fully ``saturates''---always provides a gradient signal.
+    \item[Exponential Loss:] $\ell(\mu) = e^{-\mu}$. Aggressive penalty on misclassifications. Used in \textbf{AdaBoost}. Highly sensitive to outliers.
 \end{description}
+
+\begin{remark}
+All surrogate losses (hinge, logistic, exponential) upper-bound the 0--1 loss. They are convex, making optimization tractable, and each induces different properties: hinge creates sparse support vectors, logistic outputs calibrated probabilities, and exponential drives boosting algorithms.
+\end{remark}
 
 \section*{Regularization}
 
-To prevent overfitting, especially when working with high-dimensional feature spaces (like expanded polynomials), we add a \textbf{regularization penalty} $R(\mathbf{w})$ to the loss function. The new objective becomes:
-$$\min_{\mathbf{w}} \left( L_{\text{emp}}(\mathbf{w}) + \lambda R(\mathbf{w}) \right)$$
-where $\lambda > 0$ controls the strength of the penalty.
+High-dimensional feature spaces (e.g., degree-$p$ polynomials) risk overfitting. \textbf{Regularization} adds a penalty $R(\mathbf{w})$ to shrink or sparsify weights:
+$$\mathbf{w}^* = \arg\min_{\mathbf{w}} \left[ \frac{1}{N} \sum_{i=1}^{N} \ell\!\left(f_{\mathbf{w}}(\xx^{(i)}), y^{(i)}\right) + \lambda\, R(\mathbf{w}) \right]$$
+where $\lambda > 0$ controls regularization strength.
 
 \begin{description}
-    \item[$\mathbf{L_2}$ Regularization (Ridge):] $R(\mathbf{w}) = ||\mathbf{w}||_2^2 = \sum w_j^2$. Penalizes large weights, driving them closer to zero, which shrinks variance and creates smoother decision functions.
-    \item[$\mathbf{L_1}$ Regularization (Lasso):] $R(\mathbf{w}) = ||\mathbf{w}||_1 = \sum |w_j|$. Induces \textbf{sparsity}, meaning it forces less important feature weights exactly to zero, performing intrinsic feature selection.
+    \item[$L_2$ Regularization (Ridge):] $R(\mathbf{w}) = \|\mathbf{w}\|_2^2 = \sum_j w_j^2$. Shrinks all weights toward zero. Produces smoother models. Closed-form solution exists.
+    \item[$L_1$ Regularization (Lasso):] $R(\mathbf{w}) = \|\mathbf{w}\|_1 = \sum_j |w_j|$. Drives irrelevant weights \textbf{exactly to zero}, performing automatic \textbf{feature selection}. No closed-form; requires iterative optimization.
 \end{description}
 
-\section*{Optimization: Finding the Optimal Weights}
+\begin{lstlisting}[style=pythonstyle]
+# Ridge (L2) vs Lasso (L1) regularization
+from sklearn.linear_model import Ridge, Lasso
 
-How do we actually solve the $\arg\min$ problem?
+ridge = Ridge(alpha=1.0)   # L2: shrinks all weights
+ridge.fit(X_train, y_train)
+print(f"Ridge weights: {ridge.coef_}")  # Small but nonzero
+
+lasso = Lasso(alpha=0.1)   # L1: drives some weights to 0
+lasso.fit(X_train, y_train)
+print(f"Lasso weights: {lasso.coef_}")  # Sparse: some exactly 0
+print(f"Nonzero features: {np.sum(lasso.coef_ != 0)}")
+\end{lstlisting}
+
+\section*{Optimization: Finding Optimal Weights}
+
+The ERM objective $L(\mathbf{w})$ must be minimized. Two approaches:
 
 \begin{enumerate}
-    \item \textbf{Analytical Solution (Closed-form):} Set the gradient to zero ($\nabla_{\mathbf{w}} L(\mathbf{w}) = \mathbf{0}$) and solve for $\mathbf{w}$. This is possible for some models like unregularized or $L_2$-regularized linear regression.
-    \item \textbf{Numerical Optimization (Gradient Descent):} For loss functions without closed-form solutions (like Logistic Loss), we use iterative methods. We compute the gradient $\nabla_{\mathbf{w}} L(\mathbf{w})$ and take steps in the opposite direction.
+    \item \textbf{Analytical (Closed-Form) Solution:} Set $\nabla_{\mathbf{w}} L(\mathbf{w}) = \mathbf{0}$ and solve. Possible for squared loss (OLS) and Ridge regression. For OLS with design matrix $X$:
+    $$\mathbf{w}^* = (X^T X)^{-1} X^T \yy$$
+    For Ridge: $\mathbf{w}^* = (X^T X + \lambda I)^{-1} X^T \yy$. Cost is $O(d^3)$ for the matrix inverse.
+
+    \item \textbf{Gradient Descent (Iterative):} When no closed-form exists (logistic, hinge, exponential losses), iteratively follow the negative gradient:
 \end{enumerate}
 
-\begin{definition}[Gradient Descent Update Rule]
-At each iteration $t$, the weights are updated using the rule:
-$$\mathbf{w}^{(t+1)} = \mathbf{w}^{(t)} - \eta \nabla_{\mathbf{w}} L(\mathbf{w}^{(t)})$$
-where $\eta$ is the \textbf{learning rate} (step size), determining how far we move along the slope of the error surface at each step.
+\begin{definition}[Gradient Descent Update]
+$$\mathbf{w}^{(t+1)} = \mathbf{w}^{(t)} - \eta\, \nabla_{\mathbf{w}} L\!\left(\mathbf{w}^{(t)}\right)$$
+where $\eta > 0$ is the \textbf{learning rate}. Each step moves along the steepest descent direction of the loss surface. Convergence requires $\eta$ to be small enough (for convex losses, gradient descent converges to the global minimum).
 \end{definition}
+
+\begin{remark}
+Computing $\nabla_{\mathbf{w}} L(\mathbf{w})$ requires summing over all $N$ training examples per iteration. \textbf{Stochastic Gradient Descent} (SGD) approximates the full gradient using a single example (or mini-batch), trading per-step accuracy for computational efficiency.
+\end{remark}

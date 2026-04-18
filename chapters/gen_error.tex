@@ -1,0 +1,196 @@
+
+\chapter*{Generalization Error and Loss Functions}
+\addcontentsline{toc}{chapter}{Generalization Error and Loss Functions}
+
+\section*{Empirical Risk vs.\ Generalization Error}
+
+Training a model means minimizing the loss on the data we \textit{have}. But the real objective is to minimize the loss on data we have \textit{never seen}. This gap---between training performance and true performance---is the central tension in all of supervised learning.
+
+\begin{definition}[Empirical Risk]
+Given a training set $D = \{(\xx^{(i)}, y^{(i)})\}_{i=1}^{m}$ and a loss function $\ell$, the \textbf{empirical risk} (or empirical error) is the average loss over the training examples:
+$$L_{\text{emp}}(\boldsymbol{\theta}; D) = \frac{1}{m} \sum_{i=1}^{m} \ell\!\left(f_{\boldsymbol{\theta}}(\xx^{(i)}),\; y^{(i)}\right)$$
+This is the quantity we directly minimize during training.
+\end{definition}
+
+\begin{definition}[Generalization Error]
+The \textbf{generalization error} (also called out-of-sample error or risk) is the expected loss over the entire problem domain:
+$$L_{\text{gen}} = \sum_{i=1}^{M} \ell\!\left(f_{\boldsymbol{\theta}}(\xx^{(i)}),\; y^{(i)}\right) \cdot P(\xx^{(i)}, y^{(i)})$$
+where $P(\xx, y)$ is the (unknown) prior probability distribution over all $M$ possible input--output pairs in the problem domain, and the sum runs over every feasible pair.
+\end{definition}
+
+\begin{remark}[We Can Never Compute $L_{\text{gen}}$ Exactly]
+Computing $L_{\text{gen}}$ requires (1) knowing every possible data pair $(\xx, y)$ the model could encounter, and (2) knowing their joint probability $P(\xx, y)$. Both are unknown and unknowable in practice. We can only \textbf{estimate} generalization error:
+\begin{itemize}
+    \item \textbf{Theoretically:} derive statistical bounds on $|L_{\text{gen}} - L_{\text{emp}}|$ (PAC learning, VC dimension).
+    \item \textbf{Empirically:} measure $L_{\text{emp}}$ on held-out validation/test data as a statistical estimate of $L_{\text{gen}}$.
+\end{itemize}
+\end{remark}
+
+\begin{remark}[Training Loss Is a Local Indicator]
+$L_{\text{emp}}$ on the training set tells you how well the model fits the data it was trained on---nothing more. A model can drive training loss to zero by memorizing the dataset (overfitting) while performing terribly on unseen data. The empirical loss on a \textbf{validation set} (data not used during training) is what actually estimates $L_{\text{gen}}$.
+\end{remark}
+
+\section*{Promoting Generalization}
+
+Since we cannot compute $L_{\text{gen}}$ directly, we use several strategies to ensure that low $L_{\text{emp}}$ translates into low $L_{\text{gen}}$:
+
+\begin{description}
+    \item[Act on the loss function $\ell$:] Add \textbf{regularization} terms $\lambda R(\ww)$ to penalize model complexity (e.g., $L_1$, $L_2$ penalties on weights). This discourages overfitting by preventing weights from growing too large.
+    \item[Act on model complexity:] Choose a hypothesis class $\mathcal{H}$ whose capacity matches the problem. Too flexible $\Rightarrow$ overfitting; too rigid $\Rightarrow$ underfitting.
+    \item[Act on the data:] Gather large, representative datasets. As $m \to M$, the training distribution approaches the true distribution, and $L_{\text{emp}} \to L_{\text{gen}}$.
+    \item[Train/Validation/Test splits:] Partition data to separately optimize parameters (train), select model/hyperparameters (validation), and estimate final generalization (test).
+\end{description}
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_squared_error
+
+# Generate synthetic data
+np.random.seed(42)
+X = np.random.randn(200, 5)
+y = X @ np.array([3, -1, 0.5, 0, 0]) + np.random.randn(200) * 0.5
+
+# Split into train / validation / test
+X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.4)
+X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5)
+
+model = Ridge(alpha=1.0)
+model.fit(X_train, y_train)
+
+train_err = mean_squared_error(y_train, model.predict(X_train))
+val_err   = mean_squared_error(y_val,   model.predict(X_val))
+test_err  = mean_squared_error(y_test,  model.predict(X_test))
+
+print(f"Train MSE: {train_err:.4f}")  # L_emp on training set
+print(f"Val   MSE: {val_err:.4f}")    # Estimate of L_gen
+print(f"Test  MSE: {test_err:.4f}")   # Final L_gen estimate
+# Gap between train and val error = generalization gap
+\end{lstlisting}
+
+\section*{Loss Functions for Classification}
+
+In binary classification with labels $y \in \{-1, +1\}$, every classification loss can be expressed as a function of the \textbf{margin}.
+
+\begin{definition}[Margin]
+The \textbf{margin} of a prediction is defined as:
+$$\mu(\xx) = f_{\ww}(\xx) \cdot y(\xx)$$
+\begin{itemize}
+    \item $\mu > 0$: the prediction \textbf{agrees} with the true label (correct).
+    \item $\mu < 0$: the prediction \textbf{disagrees} with the true label (incorrect).
+    \item $|\mu|$: the \textbf{confidence} of the prediction.
+\end{itemize}
+The margin converts the two-argument problem $\ell(\hat{y}, y)$ into a single-argument function $\ell(\mu)$, making it easier to analyze and compare losses.
+\end{definition}
+
+\subsection*{Classification Loss Functions}
+
+All of the following are functions of the margin $\mu$:
+
+\begin{description}
+    \item[0/1 Loss:] $\ell(\mu) = \begin{cases} 1 & \text{if } \mu < 0 \\ 0 & \text{otherwise}\end{cases}$
+
+    The ideal loss---it counts misclassifications exactly. However, it is a step function: non-convex, non-differentiable, and computationally intractable to optimize. All other classification losses are differentiable \textbf{surrogate} approximations of 0/1 loss.
+
+    \item[Hinge Loss:] $\ell(\mu) = \max(0,\; 1 - \mu)$
+
+    Used in \textbf{Support Vector Machines}. Zero loss only when $\mu \geq 1$ (i.e., correct \textit{and} confident). Penalizes predictions that are correct but too close to the boundary. Convex but not differentiable at $\mu = 1$.
+
+    \item[Logistic Loss:] $\ell(\mu) = \log(1 + e^{-\mu})$
+
+    Used in \textbf{Logistic Regression}. Smooth, differentiable everywhere, and convex---ideal for gradient-based optimization. Never reaches exactly zero: even highly confident correct predictions incur a small loss, continuously pushing the model to improve.
+
+    \item[Exponential Loss:] $\ell(\mu) = e^{-\mu}$
+
+    Used in \textbf{AdaBoost}. Extremely sensitive to misclassifications ($\mu \ll 0$ yields enormous loss), making it vulnerable to outliers and label noise.
+\end{description}
+
+\begin{remark}[Asymmetric Loss]
+The 0/1 loss treats all misclassifications equally, but in many real problems the costs are asymmetric. Misclassifying a sick patient as healthy (false negative) is far worse than misclassifying a healthy patient as sick (false positive). An \textbf{asymmetric loss} assigns different penalties $a \neq b$ to different error types via a cost matrix:
+$$A = \begin{bmatrix} 0 & a \\ b & 0 \end{bmatrix}, \quad a \neq b$$
+\end{remark}
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+
+mu = np.linspace(-3, 3, 500)  # Margin values
+
+# Classification losses as functions of margin
+zero_one  = (mu < 0).astype(float)              # 0/1 loss
+hinge     = np.maximum(0, 1 - mu)               # Hinge loss (SVM)
+logistic  = np.log(1 + np.exp(-mu))              # Logistic loss
+exponential = np.exp(-mu)                        # Exponential loss (AdaBoost)
+
+# --- Plotting (requires matplotlib) ---
+import matplotlib.pyplot as plt
+plt.figure(figsize=(8, 5))
+plt.plot(mu, zero_one, 'k--', lw=2, label='0/1 Loss')
+plt.plot(mu, hinge, 'b',   lw=2, label='Hinge Loss')
+plt.plot(mu, logistic, 'r', lw=2, label='Logistic Loss')
+plt.plot(mu, exponential, 'g', lw=2, label='Exponential Loss')
+plt.xlabel('Margin $\mu$'); plt.ylabel('Loss $\ell(\mu)$')
+plt.legend(); plt.title('Classification Loss Functions')
+plt.axvline(0, color='gray', ls=':'); plt.ylim(-0.1, 4)
+plt.savefig('classification_losses.png', dpi=150)
+\end{lstlisting}
+
+\section*{Loss Functions for Regression}
+
+For regression tasks where $y \in \mathbb{R}$, the loss is a function of the \textbf{residual} $r = y - \hat{y}$, measuring how far the prediction deviates from the true value.
+
+\begin{description}
+    \item[Squared Loss ($L_2$):] $\ell(y, \hat{y}) = (y - \hat{y})^2$
+
+    The workhorse of regression. Squaring makes small residuals ($|r| < 1$) even smaller and large residuals ($|r| > 1$) much larger, so the model is heavily influenced by \textbf{outliers}. Smooth and differentiable everywhere, yielding clean gradients: $\frac{\partial \ell}{\partial \hat{y}} = -2(y - \hat{y})$.
+
+    \item[Absolute Loss ($L_1$):] $\ell(y, \hat{y}) = |y - \hat{y}|$
+
+    Linear penalty regardless of error magnitude, making it \textbf{robust to outliers}. The gradient is constant in magnitude ($\pm 1$), which avoids the exploding-gradient effect of $L_2$ on large residuals. However, it is non-differentiable at $r = 0$.
+
+    \item[Huber Loss:] $\ell_\delta(r) = \begin{cases} \frac{1}{2}r^2 & \text{if } |r| \leq \delta \\ \delta\,|r| - \frac{1}{2}\delta^2 & \text{otherwise}\end{cases}$
+
+    Combines the best of both: quadratic near zero (smooth gradients for small errors) and linear in the tails (robustness to outliers). The threshold $\delta$ controls the transition point.
+\end{description}
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+
+r = np.linspace(-4, 4, 500)  # Residuals
+
+# Regression losses
+l2_loss   = r ** 2                                # Squared loss
+l1_loss   = np.abs(r)                             # Absolute loss
+delta = 1.0
+huber = np.where(np.abs(r) <= delta,              # Huber loss
+                 0.5 * r**2,
+                 delta * np.abs(r) - 0.5 * delta**2)
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(8, 5))
+plt.plot(r, l2_loss, 'r', lw=2, label='$L_2$ (Squared)')
+plt.plot(r, l1_loss, 'b', lw=2, label='$L_1$ (Absolute)')
+plt.plot(r, huber,   'g', lw=2, label=f'Huber ($\delta$={delta})')
+plt.xlabel('Residual $r = y - \hat{y}$')
+plt.ylabel('Loss $\ell(r)$')
+plt.legend(); plt.title('Regression Loss Functions')
+plt.savefig('regression_losses.png', dpi=150)
+\end{lstlisting}
+
+\section*{The Supervised Learning Design Framework}
+
+Every supervised learning problem requires four design choices. Each interacts with the others---changing one may require revisiting the rest.
+
+\begin{enumerate}
+    \item \textbf{Hypothesis class $\mathcal{H}$:} What family of functions can $f_{\boldsymbol{\theta}}$ belong to? (Linear models, decision trees, neural networks, \ldots) This is the \textbf{inductive bias}---our structural assumption about the mapping $f: X \to Y$.
+
+    \item \textbf{Loss function $\ell$:} How do we quantify prediction errors? The choice of loss encodes what types of errors matter most and directly shapes the optimization landscape.
+
+    \item \textbf{Optimization algorithm:} How do we search for $\boldsymbol{\theta}^*$? Closed-form solutions exist only in special cases (e.g., OLS). In general, we use iterative methods (gradient descent, SGD, Adam, \ldots).
+
+    \item \textbf{Validation procedure:} How do we estimate $L_{\text{gen}}$ and select among competing models? (Hold-out split, $k$-fold cross-validation, \ldots)
+\end{enumerate}
+
+\begin{remark}[The Design Choices Are Not Independent]
+The hypothesis class constrains which loss functions are computationally tractable (e.g., hinge loss pairs naturally with SVMs). The loss function's differentiability determines which optimizers can be used. The amount of available data influences how much model complexity we can afford and which validation strategy is feasible.
+\end{remark}

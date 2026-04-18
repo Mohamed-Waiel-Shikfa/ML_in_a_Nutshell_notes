@@ -1,81 +1,191 @@
-
 \chapter*{Support Vector Machines (SVM)}
 \addcontentsline{toc}{chapter}{Support Vector Machines (SVM)}
 
 \section*{The Optimal Decision Boundary}
 
-When training a linear classifier, there may be infinitely many hyperplanes that perfectly separate two linearly separable classes. Support Vector Machines (SVMs) are designed to answer the fundamental question: \textit{Which of these boundaries is the best?}
+For linearly separable data, infinitely many hyperplanes can perfectly separate two classes. \textbf{Support Vector Machines (SVMs)} answer the question: \textit{which of these boundaries generalizes best?}
 
-Intuitively, the best decision boundary is the one that is furthest away from the closest training data points of any class. This concept is formalized using the geometric margin.
+The SVM principle is intuitive: the best decision boundary is the one \textbf{furthest from the closest training points} of any class. A classifier with a wider ``safe zone'' around its boundary is less likely to misclassify unseen data that falls near the border. This safe zone is formalized as the \textbf{geometric margin}.
 
 \begin{definition}[Geometric Margin]
-The \textbf{margin} is defined as the perpendicular distance between the decision boundary (the hyperplane) and the closest data points from each class.
-SVM seeks to find the hyperplane that \textbf{maximizes this margin}.
+The \textbf{margin} $\gamma$ is the perpendicular distance between the decision hyperplane $\mathbf{w}^T\xx + b = 0$ and the closest data points from each class. The total margin width is $\gamma = \frac{2}{\|\mathbf{w}\|}$. SVM seeks the hyperplane that \textbf{maximizes} $\gamma$.
 \end{definition}
 
 \begin{definition}[Support Vectors]
-The \textbf{support vectors} are the specific data points that lie exactly on the margin boundaries. They are the most difficult points to classify. The entire position and orientation of the optimal hyperplane depend \textit{only} on these support vectors; if all other data points were moved or removed, the decision boundary would not change.
+The \textbf{support vectors} are the data points lying exactly on the margin boundaries (i.e., satisfying $y^{(i)}(\mathbf{w}^T\xx^{(i)} + b) = 1$). The optimal hyperplane depends \textit{only} on these critical points---removing or moving any non-support-vector training point leaves the decision boundary unchanged.
 \end{definition}
 
-\section*{Hard Margin vs. Soft Margin}
+\begin{lstlisting}[style=pythonstyle]
+# Train a linear SVM classifier
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 
-\subsection*{Hard Margin SVM}
-A Hard Margin SVM enforces a strict rule: all data points must be correctly classified, and no points are allowed to fall inside the margin.
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, random_state=42)
 
-Mathematically, the total width of the margin is $\frac{2}{||\mathbf{w}||}$. To maximize the margin, we must minimize $||\mathbf{w}||$. The optimization problem is:
-$$ \min_{\mathbf{w}, w_0} \frac{1}{2} ||\mathbf{w}||^2 $$
-Subject to the strict constraints: $y^{(i)} (\mathbf{w}^T \xx^{(i)} + w_0) \geq 1 \quad \text{for all } i$.
+svm_clf = SVC(kernel='linear')       # Linear (hard/soft) SVM
+svm_clf.fit(X_train, y_train)
+y_pred = svm_clf.predict(X_test)
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.3f}")
+\end{lstlisting}
 
-\begin{remark}
-Hard Margin SVMs only work if the data is \textbf{perfectly linearly separable}. Even a single outlier can drastically skew the boundary or make finding a solution impossible.
+\begin{lstlisting}[style=pythonstyle]
+# Inspect support vectors after fitting
+print(f"Support vectors per class: {svm_clf.n_support_}")
+print(f"Total support vectors: {len(svm_clf.support_vectors_)}")
+
+# Access the learned hyperplane: w^T x + b = 0
+print(f"Weights w: {svm_clf.coef_[0]}")
+print(f"Intercept b: {svm_clf.intercept_[0]:.4f}")
+\end{lstlisting}
+
+\section*{Hard Margin SVM}
+
+\textbf{Hard Margin SVM} enforces that every training point is correctly classified and lies outside the margin band. Since the margin width is $\frac{2}{\|\mathbf{w}\|}$, maximizing the margin is equivalent to minimizing $\|\mathbf{w}\|^2$. The resulting \textbf{quadratic program} (convex, with linear inequality constraints) is:
+
+$$\min_{\mathbf{w}, b} \;\frac{1}{2} \|\mathbf{w}\|^2 \qquad \text{s.t.} \quad y^{(i)}(\mathbf{w}^T\xx^{(i)} + b) \geq 1, \quad i = 1, \ldots, m$$
+
+\begin{remark}[Why $\frac{1}{2}\|\mathbf{w}\|^2$?]
+The geometric margin $\gamma = \frac{2c}{\|\mathbf{w}\|}$ is scaling-invariant in $\mathbf{w}$, so we can fix $c = 1$ without loss of generality. Squaring removes the square root (a monotonic transformation that preserves the optimum) and the $\frac{1}{2}$ simplifies the gradient to $\mathbf{w}$.
 \end{remark}
 
-\subsection*{Soft Margin SVM}
-To handle data that is not perfectly separable or contains noisy outliers, we introduce the \textbf{Soft Margin SVM}. It allows some points to violate the margin boundary (or even be misclassified) by introducing \textbf{slack variables}, denoted by $\xi_i \geq 0$.
+\begin{remark}
+Hard Margin SVM requires \textbf{perfect linear separability}. A single outlier crossing the boundary can make the problem infeasible or drastically skew the solution.
+\end{remark}
 
-The modified optimization problem becomes:
-$$ \min_{\mathbf{w}, w_0, \xi} \left( \frac{1}{2} ||\mathbf{w}||^2 + C \sum_{i=1}^N \xi_i \right) $$
+\subsection*{Primal and Dual Formulations}
+
+The \textbf{primal} solves for the $d$-dimensional weight vector $\mathbf{w}$. Introducing Lagrange multipliers $\alpha_i \geq 0$ for each constraint yields the equivalent \textbf{dual} problem over $m$ variables:
+
+$$\max_{\boldsymbol{\alpha}} \;\sum_{i=1}^{m} \alpha_i - \frac{1}{2}\sum_{i,j=1}^{m} \alpha_i \alpha_j \, y^{(i)} y^{(j)} \, (\xx^{(i)})^T\xx^{(j)} \qquad \text{s.t.} \quad \sum_{i=1}^{m} \alpha_i y^{(i)} = 0, \;\; \alpha_i \geq 0$$
+
+At the solution, $\mathbf{w} = \sum_{i=1}^{m} \alpha_i y^{(i)} \xx^{(i)}$. Only support vectors have $\alpha_i > 0$; all other training points have $\alpha_i = 0$ and are irrelevant. The bias is recovered as $b = y^{(k)} - \mathbf{w}^T\xx^{(k)}$ for any support vector $k$.
+
+\section*{Soft Margin SVM}
+
+When data is not perfectly separable (or contains noisy outliers), we relax the hard constraints by introducing \textbf{slack variables} $\xi_i \geq 0$ that allow individual points to violate the margin or be misclassified:
+
+$$\min_{\mathbf{w}, b, \boldsymbol{\xi}} \;\frac{1}{2}\|\mathbf{w}\|^2 + C \sum_{i=1}^{m} \xi_i \qquad \text{s.t.} \quad y^{(i)}(\mathbf{w}^T\xx^{(i)} + b) \geq 1 - \xi_i, \;\; \xi_i \geq 0$$
+
+The slack variable $\xi_i$ has a direct geometric meaning:
+\begin{itemize}
+    \item $\xi_i = 0$: point $\xx^{(i)}$ is correctly classified and outside the margin.
+    \item $0 < \xi_i < 1$: correctly classified but inside the margin (margin violation).
+    \item $\xi_i \geq 1$: misclassified.
+\end{itemize}
 
 \begin{description}
-    \item[The Regularization Parameter ($C$):] The hyperparameter $C$ controls the trade-off between maximizing the margin width and minimizing the classification errors (slack).
+    \item[The $C$ Parameter:] $C$ controls the trade-off between margin width and constraint violations.
     \begin{itemize}
-        \item \textbf{Large $C$:} Imposes a high penalty for errors. The model will choose a narrower margin to perfectly classify as many training points as possible (prone to overfitting).
-        \item \textbf{Small $C$:} Imposes a low penalty for errors. The model favors a wider, smoother margin, even if it misclassifies a few training points (better generalization, prone to underfitting).
+        \item \textbf{Large $C$:} High penalty for violations $\Rightarrow$ narrower margin, fewer errors on training data (risk of overfitting).
+        \item \textbf{Small $C$:} Low penalty for violations $\Rightarrow$ wider margin, more tolerance for misclassifications (better generalization, risk of underfitting).
     \end{itemize}
+    As $C \to \infty$, the soft-margin formulation recovers the hard-margin SVM.
 \end{description}
+
+The soft-margin dual differs from the hard-margin dual only by an upper bound on each multiplier: $0 \leq \alpha_i \leq C$.
+
+\begin{lstlisting}[style=pythonstyle]
+# Effect of C: small C = wide margin, large C = narrow margin
+from sklearn.svm import SVC
+
+svm_small_C = SVC(kernel='linear', C=0.01)  # Wide margin
+svm_large_C = SVC(kernel='linear', C=100)   # Narrow margin
+
+svm_small_C.fit(X_train, y_train)
+svm_large_C.fit(X_train, y_train)
+
+# Small C: more support vectors, wider margin
+print(f"C=0.01 SVs: {sum(svm_small_C.n_support_)}")
+# Large C: fewer support vectors, tighter fit
+print(f"C=100  SVs: {sum(svm_large_C.n_support_)}")
+\end{lstlisting}
 
 \section*{SVM and the Hinge Loss}
 
-We can also view Soft Margin SVM through the lens of Empirical Risk Minimization (ERM) that we established in previous lectures. Training a Soft Margin SVM is mathematically equivalent to minimizing the \textbf{Hinge Loss} combined with $L_2$ Regularization:
+Soft Margin SVM can be understood through the \textbf{Empirical Risk Minimization (ERM)} framework. Training a soft-margin SVM is mathematically equivalent to minimizing the \textbf{hinge loss} with $L_2$ regularization:
 
-$$ L(\mathbf{w}) = \sum_{i=1}^N \max(0, 1 - y^{(i)}f_{\mathbf{w}}(\xx^{(i)})) + \lambda ||\mathbf{w}||^2 $$
+$$\min_{\mathbf{w}} \;\sum_{i=1}^{m} \max\!\bigl(0,\; 1 - y^{(i)}(\mathbf{w}^T\xx^{(i)} + b)\bigr) + \lambda \|\mathbf{w}\|^2$$
 
-Where $f_{\mathbf{w}}(\xx) = \mathbf{w}^T\xx + w_0$. The Hinge loss penalizes predictions not just when they have the wrong sign, but when they fall inside the margin (i.e., when the functional margin $y^{(i)}f_{\mathbf{w}}(\xx^{(i)}) < 1$).
+The equivalence follows by identifying the slack variables as $\xi_i = \max(0, 1 - y^{(i)} f_{\mathbf{w}}(\xx^{(i)}))$ and the regularization strength as $\lambda = \frac{1}{2C}$.
+
+\begin{remark}[Hinge Loss vs.\ 0--1 Loss]
+The hinge loss is a convex upper bound on the 0--1 loss. It penalizes not only misclassifications but also correct predictions that fall inside the margin ($y^{(i)} f_{\mathbf{w}}(\xx^{(i)}) < 1$), pushing the algorithm to achieve a margin of at least 1 on every point. Keeping $\|\mathbf{w}\|$ small (via regularization) translates directly to a larger geometric margin, since $\gamma = \frac{2}{\|\mathbf{w}\|}$.
+\end{remark}
+
+\begin{remark}[SVM vs.\ Logistic Regression]
+Both are linear classifiers, but they differ in their loss functions. Logistic regression uses the \textbf{log loss} (cross-entropy), which always imposes a penalty---even for correctly classified points far from the boundary. The hinge loss imposes \textbf{zero penalty} once a point is outside the margin ($y \cdot f(\xx) \geq 1$), making SVMs sparser: only support vectors influence the solution.
+\end{remark}
 
 \section*{The Kernel Trick}
 
-Often, the data is highly non-linear and cannot be separated by a flat hyperplane, even with a soft margin. While we could explicitly map the input features $\xx$ to a higher-dimensional space $\phi(\xx)$ (like polynomial features), doing so is computationally expensive for very high dimensions.
+When data is highly non-linear, no hyperplane in the original feature space can achieve good separation. We could map inputs to a higher-dimensional space $\phi(\xx)$ where the data becomes separable, but explicitly computing $\phi(\xx)$ is often prohibitively expensive.
 
 \begin{definition}[The Kernel Trick]
-In the dual mathematical formulation of the SVM, the data points only ever appear as dot products: $\xx^{(i)} \cdot \xx^{(j)}$. The Kernel Trick replaces this dot product with a \textbf{Kernel Function} $K(\xx^{(i)}, \xx^{(j)})$, which computes the dot product in the higher-dimensional space \textit{without ever explicitly transforming the vectors}.
-$$ K(\xx^{(i)}, \xx^{(j)}) = \phi(\xx^{(i)})^T \phi(\xx^{(j)}) $$
+In the dual formulation, training data appears only through dot products $(\xx^{(i)})^T\xx^{(j)}$. A \textbf{kernel function} $K(\xx^{(i)}, \xx^{(j)}) = \phi(\xx^{(i)})^T \phi(\xx^{(j)})$ computes the inner product in the transformed space \textit{without ever explicitly computing $\phi$}. Replacing dot products with $K$ in the dual lets SVM learn non-linear boundaries at the cost of a linear kernel evaluation.
 \end{definition}
 
-This allows the SVM to learn highly non-linear decision boundaries efficiently. Common kernels include:
+The prediction for a new input $\mathbf{z}$ becomes:
+$$y(\mathbf{z}) = \text{sign}\!\left(b + \sum_{i \in SV} \alpha_i \, y^{(i)} \, K(\xx^{(i)}, \mathbf{z})\right)$$
+
+\textbf{Common kernel functions:}
 \begin{itemize}
-    \item \textbf{Linear Kernel:} Standard dot product (no transformation).
-    \item \textbf{Polynomial Kernel:} Maps data to a polynomial feature space.
-    \item \textbf{RBF / Gaussian Kernel:} Maps data to an infinite-dimensional space, capable of wrapping completely around clusters of data.
+    \item \textbf{Linear:} $K(\xx_i, \xx_j) = \xx_i^T \xx_j$ \;---\; no transformation (standard SVM).
+    \item \textbf{Polynomial:} $K(\xx_i, \xx_j) = (\xx_i^T \xx_j + c)^d$ \;---\; maps to polynomial feature space of degree $d$.
+    \item \textbf{RBF / Gaussian:} $K(\xx_i, \xx_j) = \exp\!\bigl(-\gamma \|\xx_i - \xx_j\|^2\bigr)$ \;---\; maps to an \textit{infinite}-dimensional space. The parameter $\gamma$ controls how quickly similarity decays with distance.
 \end{itemize}
+
+\begin{lstlisting}[style=pythonstyle]
+# Kernel SVM with RBF (Gaussian) kernel
+from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+
+# RBF kernel is sensitive to feature scale -- always standardize
+rbf_svm = make_pipeline(
+    StandardScaler(),
+    SVC(kernel='rbf', C=1.0, gamma='scale')  # RBF kernel
+)
+rbf_svm.fit(X_train, y_train)
+print(f"RBF SVM accuracy: {rbf_svm.score(X_test, y_test):.3f}")
+
+# Polynomial kernel of degree 3
+poly_svm = make_pipeline(
+    StandardScaler(),
+    SVC(kernel='poly', degree=3, C=1.0)
+)
+poly_svm.fit(X_train, y_train)
+print(f"Poly SVM accuracy: {poly_svm.score(X_test, y_test):.3f}")
+\end{lstlisting}
 
 \section*{Support Vector Regression (SVR)}
 
-The concepts of SVMs can be naturally extended from classification to regression tasks.
-
-In standard regression, we penalize the model for any deviation from the true target value. In \textbf{Support Vector Regression (SVR)}, we replace the concept of a "classification margin" with an \textbf{$\epsilon$-insensitive tube} that surrounds the regression curve.
+SVM concepts extend naturally from classification to regression. In \textbf{Support Vector Regression (SVR)}, the margin concept is replaced by an \textbf{$\varepsilon$-insensitive tube} surrounding the regression function $f(\xx)$.
 
 \begin{description}
-    \item[$\epsilon$-insensitive error:] If a predicted value falls \textit{inside} the tube of width $\epsilon$ around the true value, the error is ignored (zero loss). We only pay a penalty (using slack variables $\xi$) for predictions that fall \textit{outside} of this tube.
+    \item[$\varepsilon$-Insensitive Loss:] Predictions falling \textit{inside} the tube (within $\varepsilon$ of the true target) incur \textbf{zero loss}. Only predictions \textit{outside} the tube pay a linear penalty via slack variables $\xi_i, \hat{\xi}_i \geq 0$ (one for each direction---above and below the tube).
 \end{description}
 
-Like classification SVMs, SVR relies on support vectors (the points identifying the tube) and can be fully kernelized to fit non-linear regression curves.
+The SVR primal optimization problem is:
+$$\min_{\mathbf{w}, b, \boldsymbol{\xi}, \hat{\boldsymbol{\xi}}} \;\frac{1}{2}\|\mathbf{w}\|^2 + C \sum_{i=1}^{m} (\xi_i + \hat{\xi}_i)$$
+$$\text{s.t.} \quad y^{(i)} - \mathbf{w}^T\xx^{(i)} - b \leq \varepsilon + \xi_i, \quad \mathbf{w}^T\xx^{(i)} + b - y^{(i)} \leq \varepsilon + \hat{\xi}_i, \quad \xi_i, \hat{\xi}_i \geq 0$$
+
+Like classification SVMs, SVR relies on support vectors (the points on or outside the tube boundary) and can be fully \textbf{kernelized} to fit non-linear regression curves.
+
+\begin{lstlisting}[style=pythonstyle]
+# Support Vector Regression (SVR)
+from sklearn.svm import SVR
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+
+svr_model = make_pipeline(
+    StandardScaler(),
+    SVR(kernel='rbf', C=100, epsilon=0.1)  # eps-insensitive tube
+)
+svr_model.fit(X_train, y_train)
+y_pred = svr_model.predict(X_test)
+
+from sklearn.metrics import mean_squared_error
+print(f"SVR MSE: {mean_squared_error(y_test, y_pred):.4f}")
+\end{lstlisting}

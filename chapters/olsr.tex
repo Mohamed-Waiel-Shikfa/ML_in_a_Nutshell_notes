@@ -1,0 +1,191 @@
+\chapter*{Ordinary Least Squares Regression (OLSR)}
+\addcontentsline{toc}{chapter}{Ordinary Least Squares Regression (OLSR)}
+
+\section*{Linear Regression Setup}
+
+We hypothesize that the unknown target function $F(\xx)$ is approximately linear: the prediction $\hat{y}$ is a weighted sum of input features.
+
+\begin{definition}[Linear Regression Model]
+Given an input $\xx = [x_1, x_2, \dots, x_d]^T \in \mathbb{R}^d$, the linear model predicts:
+$$\hat{y}(\xx) = w_0 + w_1 x_1 + w_2 x_2 + \dots + w_d x_d = \mathbf{w}^T \tilde{\xx}$$
+where $\mathbf{w} = [w_0, w_1, \dots, w_d]^T$ is the \textbf{weight vector} (including bias $w_0$) and $\tilde{\xx} = [1, x_1, \dots, x_d]^T$ is the \textbf{augmented feature vector} with the bias absorbed.
+\end{definition}
+
+Each weight $w_i$ quantifies the contribution of feature $x_i$ to the prediction. The bias $w_0$ is a constant offset independent of any feature value.
+
+\begin{remark}[Linearity is in the Weights]
+During training, the features $x_i$ are known constants (data) while the weights $w_i$ are the variables to be optimized. The model is \textbf{linear in the parameters} $\mathbf{w}$---this is what matters for deriving the closed-form solution, not whether the original features are transformed non-linearly.
+\end{remark}
+
+\subsection*{Regression Terminology}
+
+\begin{description}
+    \item[Simple regression:] One predictor, one response: $y = f(x)$.
+    \item[Univariate regression:] One predictor, one (or more) response variables.
+    \item[Multiple regression:] Multiple predictors, one response: $y = f(\xx)$, where $f: \mathbb{R}^d \to \mathbb{R}$.
+    \item[Multivariate regression:] One or more predictors, multiple response variables: $\mathbf{y} = f(\xx)$.
+\end{description}
+
+Our focus is \textbf{multiple regression}: $d$ predictors mapping to a single scalar output.
+
+\subsection*{The Design Matrix}
+
+Given a dataset $\mathcal{D} = \{(\xx^{(i)}, y^{(i)})\}_{i=1}^N$ with $N$ examples and $d$ features, we stack all augmented inputs into the \textbf{design matrix} and all targets into a vector:
+
+$$
+\tilde{\mathbf{X}} =
+\begin{bmatrix}
+1 & x_1^{(1)} & x_2^{(1)} & \cdots & x_d^{(1)} \\
+1 & x_1^{(2)} & x_2^{(2)} & \cdots & x_d^{(2)} \\
+\vdots & \vdots & \vdots & \ddots & \vdots \\
+1 & x_1^{(N)} & x_2^{(N)} & \cdots & x_d^{(N)}
+\end{bmatrix}_{N \times (d+1)},
+\qquad
+\mathbf{Y} =
+\begin{bmatrix}
+y^{(1)} \\ y^{(2)} \\ \vdots \\ y^{(N)}
+\end{bmatrix}_{N \times 1}
+$$
+
+The vector of all predictions is then a single matrix--vector product: $\hat{\mathbf{Y}} = \tilde{\mathbf{X}} \mathbf{w}$.
+
+\subsection*{Why Linear Models?}
+
+\begin{itemize}
+    \item \textbf{Simplicity:} Easy to implement, interpret, and debug. Each weight directly indicates a feature's contribution.
+    \item \textbf{Efficiency:} Predictions reduce to a dot product---trivially parallelizable on GPUs.
+    \item \textbf{Extensibility:} Non-linear feature transforms $\phi(\xx)$ let the model capture non-linear patterns while remaining linear in the parameter space.
+    \item \textbf{Foundation:} Linear models underpin neural networks, SVMs, and many ensemble methods.
+\end{itemize}
+
+%% ----------------------------------------------------------------
+\section*{Loss Function: Mean Squared Error}
+
+Following the ERM framework, we choose the \textbf{Squared Error} loss and average over all $N$ training examples.
+
+\begin{definition}[MSE Loss for Linear Regression]
+$$\ell(\mathbf{w}) = \frac{1}{N} \sum_{i=1}^{N} \left( y^{(i)} - \mathbf{w}^T \tilde{\xx}^{(i)} \right)^2$$
+In compact matrix form:
+$$\ell(\mathbf{w}) = \frac{1}{N} \left( \mathbf{Y} - \tilde{\mathbf{X}} \mathbf{w} \right)^T \left( \mathbf{Y} - \tilde{\mathbf{X}} \mathbf{w} \right)$$
+\end{definition}
+
+This is equivalent to the \textbf{Sum of Squared Errors (SSE)} scaled by $\frac{1}{N}$. When this squared-error loss is used in linear regression, the problem is called \textbf{Ordinary Least Squares (OLS)}.
+
+The optimization objective is:
+$$\mathbf{w}^* = \arg\min_{\mathbf{w}} \; \ell(\mathbf{w})$$
+
+%% ----------------------------------------------------------------
+\section*{Convexity of MSE}
+
+Before solving, we establish that this optimization problem has a unique global solution.
+
+\begin{definition}[Convex Function]
+A function $f: \mathbb{R}^n \to \mathbb{R}$ is \textbf{convex} if for any $\xx, \yy \in \mathbb{R}^n$ and $\lambda \in [0, 1]$:
+$$f\!\left(\lambda \xx + (1-\lambda)\yy\right) \leq \lambda f(\xx) + (1-\lambda) f(\yy)$$
+Geometrically: the line segment between any two points on the graph lies on or above the graph.
+\end{definition}
+
+\begin{remark}[Why Convexity Matters]
+For convex optimization problems, \textbf{every local minimum is a global minimum}. The MSE loss $\ell(\mathbf{w})$ is a quadratic function of $\mathbf{w}$ (a paraboloid opening upward), hence convex. Setting the gradient to zero is therefore sufficient to find the unique optimal $\mathbf{w}^*$.
+\end{remark}
+
+%% ----------------------------------------------------------------
+\section*{Closed-Form Solution: The Normal Equations}
+
+Since $\ell(\mathbf{w})$ is convex, we find the minimum by setting the gradient to zero.
+
+\subsection*{Step 1: Expand the Loss}
+
+$$\ell(\mathbf{w}) = \frac{1}{N}\!\left(\mathbf{Y}^T\mathbf{Y} - 2\mathbf{w}^T \tilde{\mathbf{X}}^T \mathbf{Y} + \mathbf{w}^T \tilde{\mathbf{X}}^T \tilde{\mathbf{X}} \mathbf{w}\right)$$
+
+\subsection*{Step 2: Compute the Gradient}
+
+$$\nabla_{\mathbf{w}} \ell(\mathbf{w}) = \frac{2}{N}\!\left(-\tilde{\mathbf{X}}^T \mathbf{Y} + \tilde{\mathbf{X}}^T \tilde{\mathbf{X}} \mathbf{w}\right)$$
+
+\subsection*{Step 3: Set Gradient to Zero and Solve}
+
+\begin{align*}
+\nabla_{\mathbf{w}} \ell(\mathbf{w}) = \mathbf{0}
+&\implies \tilde{\mathbf{X}}^T \tilde{\mathbf{X}} \mathbf{w} = \tilde{\mathbf{X}}^T \mathbf{Y} \\[4pt]
+&\implies \boxed{\mathbf{w}^* = \left(\tilde{\mathbf{X}}^T \tilde{\mathbf{X}}\right)^{-1} \tilde{\mathbf{X}}^T \mathbf{Y}}
+\end{align*}
+
+The equation $\tilde{\mathbf{X}}^T \tilde{\mathbf{X}} \mathbf{w} = \tilde{\mathbf{X}}^T \mathbf{Y}$ is called the \textbf{Normal Equation}---a system of $(d+1)$ linear equations in $(d+1)$ unknowns.
+
+%% ----------------------------------------------------------------
+\section*{OLS in Practice}
+
+\begin{lstlisting}[style=pythonstyle]
+# OLS regression with sklearn
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+import numpy as np
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42)
+
+model = LinearRegression()        # uses OLS internally
+model.fit(X_train, y_train)       # solve normal equations
+y_pred = model.predict(X_test)
+
+print(f"Intercept (w0): {model.intercept_:.4f}")
+print(f"Weights:        {model.coef_}")
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle]
+# Manual normal equation: w = (X^T X)^{-1} X^T y
+import numpy as np
+
+# Augment X with a column of ones for the bias term
+X_aug = np.column_stack([np.ones(len(X_train)), X_train])
+
+# Solve closed-form OLS
+w_star = np.linalg.inv(X_aug.T @ X_aug) @ X_aug.T @ y_train
+
+print(f"Bias w0 = {w_star[0]:.4f}")
+print(f"Weights = {w_star[1:]}")
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle]
+# Evaluate with R^2 score (coefficient of determination)
+from sklearn.metrics import r2_score
+
+r2 = r2_score(y_test, y_pred)         # using sklearn
+r2_manual = model.score(X_test, y_test)  # equivalent
+
+print(f"R^2 score: {r2:.4f}")
+# R^2 = 1: perfect fit, R^2 = 0: predicts the mean
+\end{lstlisting}
+
+\begin{remark}[$R^2$ Interpretation]
+The \textbf{coefficient of determination} $R^2 = 1 - \frac{\text{SS}_{\text{res}}}{\text{SS}_{\text{tot}}}$ measures the fraction of variance in $y$ explained by the model. $R^2 = 1$ is a perfect fit; $R^2 = 0$ means the model does no better than predicting the mean of $y$.
+\end{remark}
+
+%% ----------------------------------------------------------------
+\section*{Practical Issues with OLS}
+
+The closed-form solution $\mathbf{w}^* = (\tilde{\mathbf{X}}^T \tilde{\mathbf{X}})^{-1} \tilde{\mathbf{X}}^T \mathbf{Y}$ is elegant but has three important limitations:
+
+\subsection*{Issue 1: Invertibility of $\tilde{\mathbf{X}}^T \tilde{\mathbf{X}}$}
+
+The $(d+1) \times (d+1)$ matrix $\tilde{\mathbf{X}}^T \tilde{\mathbf{X}}$ must be invertible (full column rank). It fails when:
+
+\begin{itemize}
+    \item \textbf{Linearly dependent features:} e.g., including both \textit{net income} and \textit{gross income} (one is a linear function of the other). The columns of $\tilde{\mathbf{X}}$ become linearly dependent, making $\tilde{\mathbf{X}}^T \tilde{\mathbf{X}}$ singular.
+    \item \textbf{Near-linear dependence (multicollinearity):} The determinant approaches zero, causing numerical instability and unreliable weight estimates.
+    \item \textbf{Insufficient data ($N < d+1$):} When there are fewer samples than parameters, the design matrix is ``fat'' ($\text{rank}(\tilde{\mathbf{X}}) \leq N < d+1$), so $\tilde{\mathbf{X}}^T \tilde{\mathbf{X}}$ cannot have full rank.
+\end{itemize}
+
+\textbf{Solutions:} Use the \textbf{Moore--Penrose pseudo-inverse} (\texttt{np.linalg.pinv}), remove redundant features, or add \textbf{regularization} (Ridge/Lasso), which makes the matrix $\tilde{\mathbf{X}}^T \tilde{\mathbf{X}} + \lambda \mathbf{I}$ always invertible.
+
+\subsection*{Issue 2: Computational Cost}
+
+Matrix inversion is $O(d^3)$. For thousands or millions of features, the closed-form becomes prohibitively expensive.
+
+\textbf{Solution:} Use iterative optimization via \textbf{Gradient Descent}, which scales as $O(Nd)$ per step and avoids explicit inversion entirely.
+
+\subsection*{Issue 3: Overfitting}
+
+Minimizing training error alone does not guarantee generalization. With enough features, OLS can perfectly fit training data (zero training loss) while performing poorly on unseen data.
+
+\textbf{Solution:} \textbf{Regularization} penalizes model complexity (large weights), and techniques like cross-validation estimate the true generalization error.

@@ -44,24 +44,59 @@ what the author considers important. As always, the definition of important is
 highly subjective so the author might have omitted something that was
 important to another person, or included something that is trivial to another.
 
-Note: The image chapter contain all the covered content but the order is a bit different than the one in the notebook (will fix it when i have time).
-
 Good luck,
 
 MWS
 
+\tableofcontents
 \clearpage
 
-\input{chapters/img_data1}
-\input{chapters/img_data2}
-\input{chapters/img_data3}
+% ============================================================
+% Part I: Foundations
+% ============================================================
+\input{chapters/introduction}        % Lec 1: Introduction to ML
+\clearpage
+\input{chapters/ml_tasks}            % Lec 2: SL, UL, RL Tasks
+\clearpage
+\input{chapters/sl_workflow}         % Lec 3: SL Workflow & Canonical Problem
+\clearpage
+\input{chapters/gen_error}           % Lec 4: Generalization Error & Loss Functions
+\clearpage
+\input{chapters/regression_cv}       % Lec 5-6: Regression, Overfitting, Cross-Validation
+\clearpage
+\input{chapters/olsr}                % Lec 7: OLS Regression & Normal Equations
+\clearpage
+\input{chapters/knn}                 % Lec 8: k-Nearest Neighbors & Classification Metrics
+\clearpage
 
+% ============================================================
+% Part II: Data Preprocessing & Feature Engineering
+% ============================================================
+\input{chapters/outliers}            % Lec 10: Outlier Detection & Handling
 \clearpage
-\input{chapters/lin_model}
+\input{chapters/scaling}             % Lec 11: Feature Scaling
 \clearpage
-\input{chapters/grad_meth}
-\input{chapters/svm}
+\input{chapters/corr_poly}           % Lec 12: Correlations, Poly Features, Feature Types
 \clearpage
-\input{chapters/logistic_reg}
+\input{chapters/img_data1}           % Lec 13: Image Feature Engineering (Part 1)
+\clearpage
+\input{chapters/img_data2}           % Lec 14: Image Feature Engineering (Part 2)
+\clearpage
+\input{chapters/img_data3}           % Lec 15: Image Feature Engineering (Part 3)
+\clearpage
+
+% ============================================================
+% Part III: Machine Learning Models
+% ============================================================
+\input{chapters/lin_model}           % Lec 16: Linear Models
+\clearpage
+\input{chapters/grad_meth}           % Lec 17: Gradient Methods
+\clearpage
+\input{chapters/svm}                 % Lec 18: Support Vector Machines
+\clearpage
+\input{chapters/logistic_reg}        % Lec 19: Logistic Regression
+\clearpage
+\input{chapters/decision_trees}      % Lec 20: Decision Trees & Ensembles
+\clearpage
 
 \end{document}

@@ -1,0 +1,215 @@
+\chapter*{Decision Trees}
+\addcontentsline{toc}{chapter}{Decision Trees}
+
+\section*{What Are Decision Trees?}
+
+A \textbf{decision tree} is a hierarchical, tree-structured model for both classification and regression. It learns a set of \textit{if-then-else} rules directly from data, making it one of the most interpretable models in machine learning.
+
+\begin{description}
+    \item[Internal nodes:] Each tests a single feature against a threshold (e.g., ``horsepower $\leq$ 130?'').
+    \item[Branches:] Represent the outcomes of the test (yes/no for binary splits).
+    \item[Leaves:] Contain the final prediction---a class label (classification) or a numeric value (regression).
+\end{description}
+
+\begin{remark}[Key Properties]
+Decision trees are \textbf{non-parametric}: they make no assumptions about the underlying data distribution. They can capture \textbf{non-linear decision boundaries}, but only through \textbf{axis-aligned} (perpendicular to feature axes) splits. No feature scaling is required, and they naturally handle both continuous and categorical features.
+\end{remark}
+
+To classify or predict for a new input $\mathbf{x}$, we simply traverse the tree from root to leaf, following the branch corresponding to each feature test. The leaf we arrive at provides the prediction.
+
+\section*{Building a Decision Tree --- Recursive Partitioning}
+
+Decision trees are built using a \textbf{greedy, top-down, recursive} strategy (divide-and-conquer). The classic algorithm is ID3 (Quinlan, 1986), later refined into C4.5 and CART:
+
+\begin{enumerate}
+    \item \textbf{Start} with the entire training dataset at the root node.
+    \item \textbf{Select the best feature and threshold} to split on---the one that produces the ``purest'' child partitions.
+    \item \textbf{Partition} the data into child nodes based on the split.
+    \item \textbf{Recurse} on each child node that is not yet pure.
+    \item \textbf{Stop} when a stopping criterion is met: all samples in a node share the same label (pure node), a maximum depth is reached, or the number of samples falls below a threshold.
+\end{enumerate}
+
+The greedy nature means the algorithm makes the locally optimal split at each node without backtracking. This does \textit{not} guarantee a globally optimal tree, but is computationally efficient and works well in practice.
+
+\section*{Splitting Criteria for Classification}
+
+The central question at each node: \textit{which feature should we split on?} We want splits that maximally reduce the \textbf{impurity} of child nodes.
+
+\subsection*{Entropy and Information Gain}
+
+\begin{definition}[Entropy]
+For a node containing samples with label distribution $p_1, p_2, \ldots, p_K$ over $K$ classes, the \textbf{entropy} is:
+$$H = -\sum_{k=1}^{K} p_k \log_2 p_k$$
+where $p_k$ is the fraction of samples belonging to class $k$. By convention, $0 \log_2 0 = 0$.
+\end{definition}
+
+Entropy measures uncertainty: $H = 0$ for a \textbf{pure node} (all samples one class), and $H$ is maximized when all classes are equally represented (e.g., $H = 1$ bit for a 50/50 binary split).
+
+\begin{definition}[Information Gain]
+The \textbf{information gain} from splitting a set $S$ on attribute $A$ is:
+$$\text{Gain}(S, A) = H_S(Y) - \sum_{v \in \text{values}(A)} \frac{|S_v|}{|S|} \cdot H_{S_v}(Y)$$
+where $S_v$ is the subset of $S$ where attribute $A$ takes value $v$. The second term is the weighted average entropy of the children. ID3 selects the attribute $A$ with the \textbf{highest information gain}---the greatest reduction in uncertainty.
+\end{definition}
+
+\subsection*{Gini Impurity}
+
+\begin{definition}[Gini Impurity]
+An alternative measure of node impurity used by the CART algorithm:
+$$G = 1 - \sum_{k=1}^{K} p_k^2$$
+This equals the probability that a randomly chosen sample would be \textbf{misclassified} if labeled according to the class distribution of the node.
+\end{definition}
+
+For binary classification: $G = 0$ when pure, $G = 0.5$ at maximum impurity (50/50 split). Gini is slightly faster to compute than entropy (no logarithm), and in practice the two criteria produce nearly identical trees.
+
+\subsection*{Choosing the Best Split (Continuous Features)}
+
+For a continuous feature, we cannot enumerate discrete values. Instead, the algorithm sorts all training values for that feature, considers every midpoint between consecutive distinct values as a candidate threshold $t$, and evaluates the binary split ``feature $\leq t$'' vs.\ ``feature $> t$''. The threshold yielding the highest information gain (or largest Gini reduction) is selected.
+
+\section*{Splitting Criteria for Regression}
+
+For \textbf{regression trees}, labels are continuous, so entropy-based measures are meaningless. Instead, we use \textbf{variance reduction} as the measure of partition quality.
+
+\begin{definition}[Variance Reduction]
+At each node, we measure impurity using the \textbf{variance} (or MSE) of the target values. The best split minimizes the weighted sum of child variances:
+$$\text{Gain}(S, A, t) = \text{Var}(S) - \left(\frac{|S_L|}{|S|}\text{Var}(S_L) + \frac{|S_R|}{|S|}\text{Var}(S_R)\right)$$
+where $S_L, S_R$ are the left and right partitions after splitting on feature $A$ at threshold $t$, and:
+$$\text{Var}(S) = \frac{1}{|S|}\sum_{i \in S}(y_i - \bar{y}_S)^2$$
+\end{definition}
+
+The prediction at each leaf is the \textbf{mean} of the target values of training samples in that region. Because partitions have low variance, the mean is a good representative of the set.
+
+\begin{remark}
+The deeper the regression tree, the more partitions it creates. With $N$ training points and no depth limit, the tree can create up to $N$ partitions---each containing a single point---perfectly memorizing the training data (overfitting).
+\end{remark}
+
+\section*{Overfitting and Pruning}
+
+An unconstrained decision tree will keep splitting until every leaf is pure (classification) or contains a single sample (regression). This produces a tree that memorizes the training data but generalizes poorly---classic \textbf{overfitting}. Even irrelevant features will be used for splitting when noise is present.
+
+\subsection*{Pre-Pruning (Early Stopping)}
+
+Constrain tree growth \textit{during} construction via hyperparameters:
+
+\begin{description}
+    \item[\texttt{max\_depth}:] Maximum depth of the tree. Lower values yield simpler, more regularized models.
+    \item[\texttt{min\_samples\_split}:] Minimum number of samples required to split an internal node.
+    \item[\texttt{min\_samples\_leaf}:] Minimum number of samples required in each leaf node.
+    \item[\texttt{max\_leaf\_nodes}:] Maximum number of leaf nodes in the tree.
+\end{description}
+
+\subsection*{Post-Pruning (Cost-Complexity Pruning)}
+
+Grow the full tree first, then prune branches that do not improve validation performance. \textbf{Cost-complexity pruning} (also called minimal cost-complexity pruning) minimizes:
+$$R_\alpha(T) = R(T) + \alpha \cdot |T|$$
+where $R(T)$ is the training error (e.g., misclassification rate or MSE), $|T|$ is the number of leaf nodes, and $\alpha \geq 0$ is a complexity parameter. Larger $\alpha$ penalizes complex trees more aggressively, producing smaller trees. In scikit-learn, this is controlled by the \texttt{ccp\_alpha} hyperparameter.
+
+\section*{Decision Trees in Practice with scikit-learn}
+
+\subsection*{Classification}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, random_state=99)
+
+# Train with entropy criterion, max depth = 3
+dt = DecisionTreeClassifier(
+    criterion='entropy', max_depth=3, random_state=99)
+dt.fit(X_train, y_train)
+
+y_pred = dt.predict(X_test)
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.3f}")
+
+# Feature importances (based on total impurity reduction)
+for name, imp in zip(feature_names, dt.feature_importances_):
+    print(f"  {name}: {imp:.3f}")
+\end{lstlisting}
+
+\subsection*{Controlling Overfitting}
+
+\begin{lstlisting}[style=pythonstyle]
+# Pre-pruning: constrain depth and leaf size
+dt_shallow = DecisionTreeClassifier(
+    max_depth=4, min_samples_leaf=5, random_state=99)
+dt_shallow.fit(X_train, y_train)
+print(f"Depth-4 test acc: "
+      f"{accuracy_score(y_test, dt_shallow.predict(X_test)):.3f}")
+
+# Post-pruning: cost-complexity pruning with ccp_alpha
+dt_pruned = DecisionTreeClassifier(
+    ccp_alpha=0.02, random_state=99)   # larger alpha = simpler tree
+dt_pruned.fit(X_train, y_train)
+print(f"Pruned test acc:  "
+      f"{accuracy_score(y_test, dt_pruned.predict(X_test)):.3f}")
+\end{lstlisting}
+
+\subsection*{Regression}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_squared_error
+import numpy as np
+
+dt_reg = DecisionTreeRegressor(max_depth=4, random_state=99)
+dt_reg.fit(X_train, y_train)
+
+y_pred = dt_reg.predict(X_test)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f"RMSE: {rmse:.3f}")      # leaf predictions = mean of region
+print(f"R^2:  {dt_reg.score(X_test, y_test):.3f}")
+\end{lstlisting}
+
+\section*{Pros and Cons}
+
+\begin{description}
+    \item[Pros:]~
+    \begin{itemize}
+        \item Highly \textbf{interpretable}---the tree can be read as a set of if-then rules.
+        \item Handles both \textbf{continuous and categorical} features natively.
+        \item Requires \textbf{no feature scaling} (splits are threshold-based).
+        \item Captures \textbf{non-linear} relationships and feature interactions.
+        \item Fast training and prediction.
+    \end{itemize}
+    \item[Cons:]~
+    \begin{itemize}
+        \item \textbf{High variance}: small changes in training data can produce a completely different tree.
+        \item \textbf{Greedy} construction does not guarantee the globally optimal tree.
+        \item Decision boundaries are \textbf{axis-aligned only}---cannot represent diagonal boundaries efficiently.
+        \item \textbf{Prone to overfitting} without careful pruning or depth control.
+        \item Can be biased toward features with many distinct values.
+    \end{itemize}
+\end{description}
+
+\section*{From Trees to Forests: Ensemble Methods}
+
+The high variance of individual decision trees is their Achilles' heel. \textbf{Ensemble methods} address this by combining many trees into a single, more robust predictor.
+
+\subsection*{Bagging and Random Forests}
+
+\textbf{Bagging} (Bootstrap Aggregating) trains $B$ independent trees, each on a different bootstrap sample (random sample with replacement) of the training data, and averages their predictions. \textbf{Random Forests} extend bagging by additionally randomizing the feature subset considered at each split, further decorrelating the trees.
+
+The result: dramatically \textbf{reduced variance} with little increase in bias, at the cost of interpretability.
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.ensemble import RandomForestClassifier
+
+rf = RandomForestClassifier(
+    n_estimators=100,       # number of trees
+    max_depth=5,            # depth of each tree
+    random_state=99)
+rf.fit(X_train, y_train)
+
+print(f"RF test acc: "
+      f"{accuracy_score(y_test, rf.predict(X_test)):.3f}")
+\end{lstlisting}
+
+\subsection*{Boosting}
+
+\textbf{Boosting} builds trees \textit{sequentially}, where each new tree focuses on correcting the mistakes of the ensemble so far. Methods include \textbf{AdaBoost} (re-weights misclassified samples) and \textbf{Gradient Boosting} (fits each new tree to the residual errors). Boosting reduces \textit{both} bias and variance and is widely considered the \textbf{state-of-the-art for tabular data}.
+
+\begin{remark}[Practical Guideline]
+A single decision tree is rarely competitive with other models. Its real power lies in serving as the building block for ensemble methods---Random Forests and Gradient Boosting (XGBoost, LightGBM)---which dominate competitions and real-world applications on structured/tabular data.
+\end{remark}

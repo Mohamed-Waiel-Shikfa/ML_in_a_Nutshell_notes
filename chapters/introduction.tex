@@ -1,0 +1,148 @@
+\chapter*{Introduction to Machine Learning}
+\addcontentsline{toc}{chapter}{Introduction to Machine Learning}
+
+\section*{What is Machine Learning?}
+
+\textbf{Machine Learning (ML)} is a subfield of Artificial Intelligence (AI) concerned with algorithms that improve automatically through experience. The canonical definition comes from Tom Mitchell (1997):
+
+\begin{definition}[Machine Learning (Mitchell, 1997)]
+A computer program is said to \textbf{learn} from experience $E$ with respect to some class of tasks $T$ and performance measure $P$, if its performance at tasks in $T$, as measured by $P$, improves with experience $E$.
+\end{definition}
+
+\begin{remark}[ML $\subseteq$ AI]
+ML sits within the broader AI landscape. While classical AI relies on hand-crafted rules and expert systems, ML extracts rules from data. Deep Learning (DL) is in turn a subset of ML that uses multi-layer neural networks to learn hierarchical representations.
+\end{remark}
+
+In traditional (human) model-based science, a domain expert writes a program that maps inputs to outputs. In ML, the process is inverted: the system is given data and desired outputs, and it \textit{learns} the program (model) that produces the mapping. The learned model can then serve multiple purposes: \textbf{making predictions}, \textbf{discovering patterns}, or \textbf{taking decisions}.
+
+\section*{The General ML Scheme}
+
+The fundamental setup of any ML problem can be stated concisely:
+
+\begin{definition}[Learning Problem]
+Given a problem domain described by a feature set $X$ and a target set $Y$, the goal is to learn a mapping:
+$$f: X \to Y$$
+from a set of training examples $\{(\xx^{(i)}, y^{(i)})\}_{i=1}^{N}$, such that $f$ approximates the true (unknown) mapping $F$ with small error on \textbf{unseen} data.
+\end{definition}
+
+\textbf{ML Design} requires choosing the right \textit{features} (the description language for the data) and the right \textit{model} (the hypothesis class for $f$) to achieve the task according to the desired performance criterion.
+
+Common instantiations of this scheme include:
+\begin{description}
+    \item[Classification:] $Y$ is a discrete set of class labels (e.g., spam vs.\ not spam).
+    \item[Regression:] $Y \subseteq \mathbb{R}$ is a continuous value (e.g., stock price prediction).
+    \item[Clustering:] No target $Y$ is given; the goal is to discover structure in $X$.
+\end{description}
+
+\section*{Inductive Learning and Inductive Biases}
+
+ML is fundamentally an exercise in \textbf{inductive learning}: observing specific examples and generalizing to a broader hypothesis about the world. This contrasts with \textit{deductive learning}, which derives specific conclusions from established logical rules and facts.
+
+\begin{remark}[Why Biases Are Necessary]
+Learning from data is an \textbf{ill-posed problem}. Training data is never sufficient to determine a unique solution---multiple hypotheses can be consistent with the same observations. Without additional assumptions, no learner can generalize beyond the training set.
+\end{remark}
+
+\textbf{Inductive biases} are the set of assumptions a learning algorithm uses to select among hypotheses that are equally consistent with the data. Every ML algorithm embeds some form of inductive bias, whether explicitly (e.g., restricting the hypothesis space to linear functions) or implicitly (e.g., preferring smoother solutions).
+
+\begin{definition}[Occam's Razor (Inductive Bias)]
+Among hypotheses consistent with the training data, prefer the \textbf{simplest} one. This principle, dating to the 13th century, remains one of the most powerful inductive biases in ML---it underpins regularization, model selection, and the entire bias-variance tradeoff.
+\end{definition}
+
+\section*{Generalization: The Core Challenge}
+
+The central goal in ML is \textbf{not} to memorize the training data, but to \textbf{generalize}---to perform well on future, unseen test data.
+
+\begin{definition}[Generalization]
+The ability of a learned model to achieve good performance on data it has never seen during training. A model that performs well on training data but poorly on test data has \textbf{overfit}; it has memorized noise rather than learning the underlying pattern.
+\end{definition}
+
+\begin{remark}
+Training data are \textit{only} for learning the model. Good performance on training data does \textbf{not} guarantee good performance on future data. The core ML challenge is designing algorithms, architectures, and training procedures that ensure generalization.
+\end{remark}
+
+\section*{The ML Pipeline in Production}
+
+In practice, the ML algorithm itself is only a small fraction of a production ML system. The full pipeline is an iterative cycle, not a one-shot process:
+
+\begin{enumerate}
+    \item \textbf{Problem Definition:} Define objectives, success metrics, and performance criteria.
+    \item \textbf{Data Collection \& Management:} Gather relevant operational data from various sources.
+    \item \textbf{Data Wrangling:} Clean, filter, transform, and scale the raw data.
+    \item \textbf{Exploratory Data Analysis (EDA):} Understand distributions, correlations, and anomalies.
+    \item \textbf{Feature Engineering:} Select, extract, and process features; reduce dimensionality.
+    \item \textbf{Model Training:} Choose and train appropriate ML algorithms.
+    \item \textbf{Evaluation \& Validation:} Test generalization via cross-validation and held-out test sets.
+    \item \textbf{Deployment \& Monitoring:} Deploy the model, monitor performance, and retrain as needed.
+\end{enumerate}
+
+\begin{remark}
+The ML code/algorithm typically accounts for a small portion of the overall effort. Data collection, cleaning, feature engineering, and monitoring dominate real-world ML projects.
+\end{remark}
+
+\section*{Main ML Paradigms}
+
+\begin{description}
+    \item[Supervised Learning (SL):] The training data consists of input-output pairs $\{(\xx^{(i)}, y^{(i)})\}$. The model learns a mapping $f: X \to Y$ from labeled examples. Includes \textit{classification} (discrete $Y$) and \textit{regression} (continuous $Y$). Core algorithms: $k$-NN, linear regression, decision trees, SVMs, neural networks.
+    \item[Unsupervised Learning (UL):] The training data contains only inputs $\{\xx^{(i)}\}$ with no labels. The goal is to discover hidden structure---clusters, principal components, latent representations. Core algorithms: $k$-means, PCA, autoencoders.
+    \item[Reinforcement Learning (RL):] An agent interacts with an environment, receiving rewards or penalties for actions. The goal is to learn a policy that maximizes cumulative reward. Not covered in depth in 15-288.
+\end{description}
+
+\section*{Software Tools Ecosystem}
+
+The Python ecosystem is the standard platform for ML and data science. The core stack:
+
+\begin{description}
+    \item[\texttt{numpy}:] Efficient numerical computation on $n$-dimensional arrays.
+    \item[\texttt{pandas}:] Tabular data manipulation via DataFrames---loading, filtering, grouping.
+    \item[\texttt{matplotlib} / \texttt{seaborn}:] Data visualization (plots, histograms, heatmaps).
+    \item[\texttt{scikit-learn}:] The workhorse ML library---classification, regression, clustering, preprocessing, model selection, and evaluation in a unified API.
+\end{description}
+
+\subsection*{Data Exploration with pandas and numpy}
+
+\begin{lstlisting}[style=pythonstyle]
+import pandas as pd
+import numpy as np
+
+df = pd.read_csv("data.csv")       # Load tabular data
+print(df.shape)                     # (num_rows, num_cols)
+print(df.describe())                # Summary statistics per column
+print(df.isnull().sum())            # Count missing values
+
+# Numpy: quick array operations
+X = df.drop("target", axis=1).values  # Feature matrix (n x d)
+y = df["target"].values               # Target vector (n,)
+print(f"Mean: {np.mean(X, axis=0)}")   # Per-feature means
+\end{lstlisting}
+
+\subsection*{End-to-End ML Example with scikit-learn}
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score
+
+# 1. Load data
+X, y = load_iris(return_X_y=True)
+
+# 2. Split into training (80%) and test (20%) sets
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# 3. Train a k-NN classifier
+model = KNeighborsClassifier(n_neighbors=5)
+model.fit(X_train, y_train)         # Learn from training data
+
+# 4. Predict on unseen test data
+y_pred = model.predict(X_test)
+
+# 5. Evaluate generalization performance
+acc = accuracy_score(y_test, y_pred)
+print(f"Test Accuracy: {acc:.3f}")   # ~0.967
+\end{lstlisting}
+
+\begin{remark}
+The \texttt{train\_test\_split} step is critical: evaluating on the same data used for training tells you nothing about generalization. Always hold out data the model has never seen.
+\end{remark}

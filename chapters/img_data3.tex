@@ -8,8 +8,255 @@ Filters are linear operations, which means they possess the property of superpos
 This process is commonly known as \textbf{Unsharp Masking}. It can be broken down into two logical steps:
 
 \begin{enumerate}
-    \item \textbf{Extract Details (High-Pass):} Take a smoothed (blurred) version of the image and subtract it from the original image. This removes the low-frequency information (smooth gradients, general color) and leaves only the high-frequency *details* (edges and noise).
-    $$ I_{details} = I_{original} - I_{smoothed} $$
+    \item \textbf{Extract Details (High-Pass):} Take a smoothed (blurred) version of the image and subtract it from the original image. This removes the low-frequency information (smooth gradients, general color) and leaves only the high-frequency \textit{details} (edges and noise).
+    $$ I_{\text{details}} = I_{\text{original}} - I_{\text{smoothed}} $$
     \item \textbf{Enhance Image:} Add these extracted details back to the original image, scaled by a factor $\alpha$, to emphasize the edges.
-    $$ I_{sharp} = I_{original} + \alpha \cdot I_{details} $$
+    $$ I_{\text{sharp}} = I_{\text{original}} + \alpha \cdot I_{\text{details}} $$
 \end{enumerate}
+
+\begin{remark}[Linearity of Filter Operations]
+Because convolution is a linear operation, we can combine the two steps into a single filter kernel. Substituting the first equation into the second: $I_{\text{sharp}} = (1 + \alpha) \cdot I_{\text{original}} - \alpha \cdot I_{\text{smoothed}}$. This means a single convolution pass can achieve the sharpening effect, which is computationally efficient.
+\end{remark}
+
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+import numpy as np
+
+img = cv2.imread('photo.jpg', cv2.IMREAD_GRAYSCALE)
+# Step 1: Smooth with Gaussian blur
+smoothed = cv2.GaussianBlur(img, (7, 7), sigmaX=2)
+# Step 2: Extract high-frequency details
+details = img.astype(np.float32) - smoothed.astype(np.float32)
+# Step 3: Add scaled details back (alpha controls strength)
+alpha = 1.5
+sharpened = np.clip(img + alpha * details, 0, 255).astype(np.uint8)
+\end{lstlisting}
+
+\subsection*{Non-Linear Filters: Median Filter}
+
+Not all useful filters are linear (convolutional). The \textbf{Median Filter} replaces each pixel with the \textit{median} of pixel values in its local neighborhood window. There is no set of weights $a_i$ such that $\text{median}(p_1, \ldots, p_n) = \sum a_i p_i$, so the median filter is fundamentally non-linear.
+
+The median filter is particularly effective at removing \textbf{salt-and-pepper noise} (random black and white pixels) because the median statistic is robust to outliers---an extreme value (0 or 255) will not affect the median of a neighborhood dominated by normal values.
+
+\begin{lstlisting}[style=pythonstyle]
+from skimage.filters import median
+from skimage import io
+
+noisy_img = io.imread('noisy_image.png', as_gray=True)
+cleaned = median(noisy_img)  # Default disk-shaped footprint
+\end{lstlisting}
+
+\section*{Image Gradients}
+
+To understand shape-based features, we must first formalize the notion of an \textbf{image gradient}. For a grayscale image where $f(x, y)$ records the intensity at pixel $(x, y)$, the gradient vector is:
+
+$$
+\nabla f(x, y) = \begin{bmatrix} G_x \\ G_y \end{bmatrix} = \begin{bmatrix} \frac{\partial f}{\partial x} \\[6pt] \frac{\partial f}{\partial y} \end{bmatrix} = \begin{bmatrix} f(x+1, y) - f(x-1, y) \\ f(x, y+1) - f(x, y-1) \end{bmatrix}
+$$
+
+Since images are discrete, the partial derivatives are approximated by finite differences between neighboring pixels. From this gradient vector we extract two key quantities:
+
+\begin{description}
+    \item[Magnitude:] $G = \sqrt{G_x^2 + G_y^2}$ — measures the \textit{strength} of the intensity change (large at edges, near-zero in flat regions).
+    \item[Direction:] $\Phi = \arctan(G_y / G_x)$ — measures the \textit{orientation} of the intensity change (perpendicular to the edge).
+\end{description}
+
+\begin{remark}
+The $x$-gradient $G_x$ ``fires'' on vertical edges (intensity changes left-to-right), while the $y$-gradient $G_y$ fires on horizontal edges. The magnitude image highlights all edges regardless of orientation.
+\end{remark}
+
+\section*{Histogram of Oriented Gradients (HOG)}
+
+\textbf{HOG (Histogram of Oriented Gradients)} is a feature descriptor that captures the distribution of gradient directions in localized portions of an image. Unlike simple edge detection, which only asks ``is this pixel an edge?'', HOG encodes \textit{how edges are oriented}---providing rich structural and shape information.
+
+HOG was introduced by Dalal and Triggs (2005) for pedestrian detection and remains widely used for object detection and classification tasks (pedestrians, faces, vehicles).
+
+\subsection*{The HOG Pipeline (Step by Step)}
+
+\begin{enumerate}
+    \item \textbf{Preprocess:} Resize the image to a standard size with dimensions that divide evenly into cells (e.g., $64 \times 128$, using powers of 2).
+
+    \item \textbf{Compute Gradients:} For every pixel, compute $G_x$, $G_y$, and then the magnitude $G$ and orientation $\Phi$.
+
+    \item \textbf{Divide into Cells:} Partition the image into small spatial cells (e.g., $8 \times 8$ pixels). Each cell will produce one local histogram.
+
+    \item \textbf{Build Orientation Histograms:} Within each cell, create a histogram of gradient orientations using $B$ bins over $[0^\circ, 180^\circ]$ (unsigned gradients). Crucially, each pixel \textit{votes} for its orientation bin weighted by its gradient magnitude (not just a count of 1). To reduce bin-edge artifacts, the magnitude contribution is interpolated between the two nearest bins proportionally.
+
+    \item \textbf{Normalize Across Blocks:} Group adjacent cells into larger overlapping blocks (e.g., $2 \times 2$ cells $= 16 \times 16$ pixels). Normalize the concatenated histograms within each block using L2-norm:
+    $$ \mathbf{v}_{\text{norm}} = \frac{\mathbf{v}}{\sqrt{\|\mathbf{v}\|^2 + \epsilon}} $$
+    This provides invariance to local illumination changes and contrast variations.
+
+    \item \textbf{Concatenate:} The normalized block histograms from the entire image are concatenated into a single, fixed-length feature vector---the HOG descriptor.
+\end{enumerate}
+
+\begin{remark}[Why Magnitude-Weighted Votes?]
+Using gradient magnitude as the vote weight ensures that strong, confident edges contribute more to the histogram than weak, noisy gradients. This makes the descriptor robust to noise in flat regions.
+\end{remark}
+
+\begin{remark}[Why Block Normalization?]
+Image gradients are sensitive to overall lighting. A bright region will have larger gradient magnitudes than a dark region showing the same structure. Normalizing over overlapping blocks compensates for this, making the descriptor robust to illumination variation.
+\end{remark}
+
+\subsection*{HOG in Practice with scikit-image}
+
+\begin{lstlisting}[style=pythonstyle]
+from skimage.feature import hog
+from skimage import io
+from skimage.color import rgb2gray
+
+img = io.imread('cat.png')
+img_gray = rgb2gray(img)
+
+# Extract HOG features
+features, hog_image = hog(
+    img_gray,
+    orientations=8,          # Number of orientation bins
+    pixels_per_cell=(8, 8),  # Cell size in pixels
+    cells_per_block=(3, 3),  # Block size in cells
+    visualize=True,          # Also return HOG visualization
+    block_norm='L2-Hys'      # Block normalization method
+)
+print(f"HOG feature vector length: {features.shape[0]}")
+\end{lstlisting}
+
+\subsection*{HOG Feature Vector Dimensionality}
+
+The length of the HOG descriptor depends on the image size and parameters. For an image of size $H \times W$ with cell size $c \times c$, block size $b \times b$ cells, and $B$ orientation bins:
+
+$$
+\text{dim} = \left(\left\lfloor \frac{H/c - b}{1} \right\rfloor + 1\right) \times \left(\left\lfloor \frac{W/c - b}{1} \right\rfloor + 1\right) \times b^2 \times B
+$$
+
+where the block stride is typically 1 cell (blocks overlap). This produces a fixed-length vector regardless of image content, making it directly usable as input to any classical ML model.
+
+\subsection*{Effect of Cell Size}
+
+Smaller cells (e.g., $8 \times 8$) capture fine-grained structural detail but produce longer feature vectors. Larger cells (e.g., $16 \times 16$) are more compact and capture coarser shape information. The choice depends on the scale of the objects of interest.
+
+\begin{lstlisting}[style=pythonstyle]
+# Compare different cell sizes
+feat_8, _ = hog(img_gray, orientations=8,
+                pixels_per_cell=(8, 8),
+                cells_per_block=(3, 3), visualize=True)
+feat_16, _ = hog(img_gray, orientations=8,
+                 pixels_per_cell=(16, 16),
+                 cells_per_block=(3, 3), visualize=True)
+print(f"8x8 cells: {feat_8.shape[0]} features")
+print(f"16x16 cells: {feat_16.shape[0]} features")
+\end{lstlisting}
+
+\section*{Template Matching}
+
+\textbf{Template Matching} is a brute-force technique for finding a small reference image (the \textit{template}) within a larger image. The template is slid across every possible position in the search image, and at each location a \textbf{similarity score} is computed between the template and the underlying patch.
+
+\subsection*{Methods}
+
+\begin{description}
+    \item[Cross-Correlation:] Compute the dot product between the template $T$ and the image patch $I$ at each position $(x, y)$:
+    $$ R(x, y) = \sum_{x', y'} T(x', y') \cdot I(x + x', y + y') $$
+    The position with the highest $R$ indicates the best match. However, raw cross-correlation is biased toward bright regions.
+    \item[Normalized Cross-Correlation (NCC):] Divides by the energy of both the template and the patch, producing scores in $[-1, 1]$. This is robust to global brightness and contrast differences.
+\end{description}
+
+\begin{remark}[Limitations]
+Template matching is \textbf{not scale-invariant} and \textbf{not rotation-invariant}: if the object in the search image is a different size or rotated relative to the template, matching will fail. For scale/rotation-robust matching, use feature-based methods (SIFT, ORB) from Part 2.
+\end{remark}
+
+\begin{lstlisting}[style=pythonstyle]
+import cv2
+import numpy as np
+
+img = cv2.imread('scene.jpg', cv2.IMREAD_GRAYSCALE)
+template = cv2.imread('object.jpg', cv2.IMREAD_GRAYSCALE)
+
+# Normalized cross-correlation matching
+result = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+
+# Find best match location
+min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+top_left = max_loc  # Top-left corner of best match
+h, w = template.shape
+bottom_right = (top_left[0] + w, top_left[1] + h)
+print(f"Best match at {top_left}, score={max_val:.3f}")
+\end{lstlisting}
+
+\section*{Image Preprocessing Pipelines}
+
+Real-world image classification rarely uses a single feature type. A typical \textbf{preprocessing pipeline} chains multiple operations to transform raw pixels into a clean, informative feature vector suitable for ML models.
+
+\subsection*{Common Pipeline Structure}
+
+\begin{enumerate}
+    \item \textbf{Resize:} Standardize all images to the same dimensions (required for fixed-length feature vectors).
+    \item \textbf{Grayscale Conversion:} Reduce from 3 channels to 1 when color is not informative, cutting feature dimensionality by $3\times$.
+    \item \textbf{Denoise:} Apply a smoothing or median filter to suppress sensor noise before feature extraction.
+    \item \textbf{Feature Extraction:} Compute one or more descriptors (HOG, edge histograms, pixel statistics, etc.).
+    \item \textbf{Normalize:} Scale the feature vector (e.g., zero mean, unit variance) so that no single feature dominates due to scale differences.
+\end{enumerate}
+
+\subsection*{Building a Combined Feature Vector}
+
+Different descriptors capture complementary information. We can concatenate multiple feature vectors into a single, richer representation:
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+from skimage.feature import hog
+from skimage.color import rgb2gray
+from skimage import io
+from skimage.transform import resize
+
+def extract_features(image_path):
+    img = io.imread(image_path)
+    img = resize(img, (128, 64), anti_aliasing=True)
+    gray = rgb2gray(img)
+
+    # Feature 1: HOG descriptor (shape information)
+    hog_feat = hog(gray, orientations=9,
+                   pixels_per_cell=(8, 8),
+                   cells_per_block=(2, 2))
+
+    # Feature 2: Basic pixel statistics
+    stats = np.array([gray.mean(), gray.std(),
+                      gray.min(), gray.max()])
+
+    # Concatenate into one feature vector
+    return np.concatenate([hog_feat, stats])
+\end{lstlisting}
+
+\section*{Putting It All Together: Image Classification with Classical ML}
+
+With a complete feature extraction pipeline, we can train any \texttt{sklearn} classifier on image data. The key insight: \textbf{traditional ML models require flat, fixed-length feature vectors}---they cannot operate on raw 2D pixel arrays of varying sizes. The entire pipeline above exists to solve this representation problem.
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import numpy as np
+
+# Assume image_paths and labels are defined
+X = np.array([extract_features(p) for p in image_paths])
+y = np.array(labels)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42)
+
+# Normalize features (critical for SVM)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Train classifier
+clf = SVC(kernel='rbf', C=10)
+clf.fit(X_train, y_train)
+y_pred = clf.predict(X_test)
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.3f}")
+\end{lstlisting}
+
+\begin{remark}[Feature Normalization is Critical]
+Different feature types live on different scales (e.g., HOG values are small floats, pixel statistics may range 0--255). Without normalization via \texttt{StandardScaler}, distance-based models (SVM, KNN) will be dominated by whichever feature has the largest numerical range, regardless of its actual discriminative power.
+\end{remark}
+
+\begin{remark}[Classical Pipeline vs.\ Deep Learning]
+This entire manual pipeline---resize, denoise, hand-craft features, normalize, classify---is what \textbf{Convolutional Neural Networks (CNNs)} learn to replace end-to-end. CNNs learn the feature extraction filters directly from data via backpropagation. However, when labeled data is scarce ($< 1000$ images), these classical pipelines with hand-crafted features (especially HOG + SVM) often outperform deep learning.
+\end{remark}

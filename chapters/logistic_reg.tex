@@ -1,69 +1,190 @@
 \chapter*{Logistic Regression}
 \addcontentsline{toc}{chapter}{Logistic Regression}
 
-\section*{A Probabilistic View of Machine Learning}
+\section*{A Probabilistic View of Classification}
 
-Up to this point, we have largely viewed classification through a geometric or functional lens (e.g., finding a hyperplane that separates classes). Logistic Regression introduces a \textbf{probabilistic formulation} of learning.
-
-Instead of just predicting a discrete label $y \in \{0, 1\}$ given an input $\xx$, we want to learn the \textbf{conditional probability density} that the label is $y$, given $\xx$. We want our model to output:
+Previous chapters framed classification geometrically: find a hyperplane that separates classes. Logistic Regression introduces a \textbf{probabilistic formulation}---instead of predicting a hard label $y \in \{0,1\}$, we model the \textbf{conditional probability} that the label is $y$ given input $\xx$:
 $$P(y \mid \xx)$$
+This is strictly more informative: it yields the most likely label \textit{and} quantifies the model's uncertainty in that prediction.
 
 \begin{description}
-    \item[Generative Models:] These models attempt to learn the joint probability $P(\xx, y)$ or the conditional distribution of the features given the class, $P(\xx \mid y)$. They essentially try to model exactly how the data for each class was generated (e.g., Naive Bayes).
-    \item[Discriminative Models:] These models bypass modeling the underlying data distribution and attempt to learn the conditional probability $P(y \mid \xx)$ directly. \textbf{Logistic Regression is a discriminative model.}
+    \item[Generative Models:] Learn the joint $P(\xx, y)$ or the class-conditional $P(\xx \mid y)$, then apply Bayes' rule to obtain $P(y \mid \xx) = \frac{P(\xx \mid y)\,P(y)}{P(\xx)}$. They model \textit{how the data was generated} (e.g., Naive Bayes).
+    \item[Discriminative Models:] Learn $P(y \mid \xx)$ directly, bypassing the full data distribution. \textbf{Logistic Regression is a discriminative model.}
 \end{description}
 
 \section*{The Logistic Sigmoid Function}
 
-A standard linear model calculates a raw score $z = \mathbf{w}^T\xx + w_0$, which can range from $-\infty$ to $+\infty$. To interpret this output as a probability, we need to map it to the range $[0, 1]$. We achieve this using the Logistic Sigmoid function.
+A linear model computes a score $z = \ww^T\xx + w_0 \in (-\infty, +\infty)$. To interpret this as a probability, we need a mapping to $[0,1]$.
 
 \begin{definition}[Logistic Sigmoid Function]
-The sigmoid function, denoted as $\sigma(z)$, "squashes" any real-valued number into the range $(0, 1)$:
-$$\sigma(z) = \frac{1}{1 + e^{-z}}$$
+The sigmoid function $\sigma(z)$ squashes any real number into the interval $(0,1)$:
+$$\sigma(z) = \frac{1}{1 + e^{-z}} = \frac{e^z}{1 + e^z}$$
 \end{definition}
 
 \textbf{Key Properties of $\sigma(z)$:}
 \begin{itemize}
-    \item As $z \rightarrow \infty$, $\sigma(z) \rightarrow 1$.
-    \item As $z \rightarrow -\infty$, $\sigma(z) \rightarrow 0$.
-    \item When $z = 0$, $\sigma(0) = 0.5$.
-    \item Symmetry property: $\sigma(-z) = 1 - \sigma(z)$.
+    \item $\sigma(z) \to 1$ as $z \to +\infty$; \quad $\sigma(z) \to 0$ as $z \to -\infty$; \quad $\sigma(0) = 0.5$.
+    \item \textbf{Symmetry:} $\sigma(-z) = 1 - \sigma(z)$.
+    \item Nearly linear around $z=0$, so small changes in the score produce proportional changes in probability.
+    \item Flattens toward the extremes, squashing outlier scores toward 0 or 1.
+    \item \textbf{Differentiable}, with a clean derivative: $\sigma'(z) = \sigma(z)\,(1 - \sigma(z))$.
 \end{itemize}
+
+\begin{lstlisting}[style=pythonstyle]
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Plot the sigmoid function
+z = np.linspace(-7, 7, 300)
+sigma = 1 / (1 + np.exp(-z))          # sigmoid formula
+
+plt.plot(z, sigma, linewidth=2)
+plt.axhline(0.5, color='gray', linestyle='--', linewidth=0.8)
+plt.axvline(0.0, color='gray', linestyle='--', linewidth=0.8)
+plt.xlabel("z (logit)")
+plt.ylabel(r"$\sigma(z)$")
+plt.title("Logistic Sigmoid Function")
+plt.show()
+\end{lstlisting}
+
+\begin{remark}[Logit: The Inverse of the Sigmoid]
+The input $z$ to the sigmoid is called the \textbf{logit}. The logit function is the \textit{inverse} of the sigmoid and equals the log of the odds ratio:
+$$\text{logit}(p) = \sigma^{-1}(p) = \ln\frac{p}{1-p}$$
+Interpreting $z$ as a log-odds gives probabilistic meaning to the linear score: a score of $z=2$ means the log-odds of class 1 are $2$, i.e., $P(y{=}1)/P(y{=}0) = e^2 \approx 7.4$.
+\end{remark}
 
 \section*{The Logistic Regression Model}
 
-In binary Logistic Regression (where $y \in \{0, 1\}$), the hypothesis function $f_{\mathbf{w}}(\xx)$ models the probability that the positive class ($y=1$) is true:
+For binary classification ($y \in \{0, 1\}$), Logistic Regression models the probability of the positive class as:
+$$P(y{=}1 \mid \xx) = \sigma(\ww^T\xx + w_0) = \frac{1}{1 + e^{-(\ww^T\xx + w_0)}}$$
+and consequently:
+$$P(y{=}0 \mid \xx) = 1 - \sigma(\ww^T\xx + w_0) = \sigma(-(\ww^T\xx + w_0))$$
+Both cases can be written compactly using the Bernoulli form:
+$$P(y \mid \xx, \ww, w_0) = \hat{y}^{\,y}\,(1-\hat{y})^{1-y}, \quad \hat{y} = \sigma(\ww^T\xx + w_0)$$
 
-$$\hat{y} = f_{\mathbf{w}}(\xx) = P(y=1 \mid \xx) = \sigma(\mathbf{w}^T\xx + w_0) = \frac{1}{1 + e^{-(\mathbf{w}^T\xx + w_0)}}$$
-
-Consequently, the probability of the negative class is simply $P(y=0 \mid \xx) = 1 - P(y=1 \mid \xx)$.
-
-\begin{remark}[The Decision Boundary]
-To make a final hard classification, we typically apply a threshold of $0.5$. We predict $y=1$ if $P(y=1 \mid \xx) \geq 0.5$.
-Because $\sigma(z) \geq 0.5$ exactly when $z \geq 0$, our prediction rule simplifies to:
-$$\text{Predict } 1 \text{ if } \mathbf{w}^T\xx + w_0 \geq 0$$
-Therefore, despite the non-linear sigmoid transformation yielding probabilities, \textbf{the underlying decision boundary separating the classes is strictly linear} (a flat hyperplane).
+\begin{remark}[The Decision Boundary Is Linear]
+To make a hard prediction, we apply a threshold at $0.5$: predict $y{=}1$ if $P(y{=}1 \mid \xx) \geq 0.5$. Since $\sigma(z) \geq 0.5 \iff z \geq 0$, the rule simplifies to:
+$$\text{Predict } 1 \;\text{ if }\; \ww^T\xx + w_0 \geq 0$$
+Despite the non-linear sigmoid, \textbf{the decision boundary is the hyperplane} $\ww^T\xx + w_0 = 0$---exactly where both classes are equiprobable.
 \end{remark}
 
-\section*{Training: Maximum Likelihood and Log-Loss}
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.linear_model import LogisticRegression
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
 
-Because Logistic Regression outputs probabilities, we do not train it using the standard sum of squared errors. Instead, we use \textbf{Maximum Conditional Likelihood Estimation (MCLE)}. We want to find the parameters $\mathbf{w}$ that maximize the probability of observing the labels in our training dataset.
+# Generate a binary classification dataset
+X, y = make_classification(n_samples=300, n_features=2,
+                           n_redundant=0, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42)
 
-Instead of maximizing the raw likelihood (which leads to numerical underflow due to multiplying many small probabilities), we typically \textbf{minimize the negative log-likelihood}, which gives us our cost function.
+# Fit logistic regression
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+print(f"Weights w:  {model.coef_[0]}")
+print(f"Bias w_0:   {model.intercept_[0]:.4f}")
+print(f"Accuracy:   {model.score(X_test, y_test):.3f}")
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle]
+# predict_proba returns [P(y=0|x), P(y=1|x)] for each sample
+probs = model.predict_proba(X_test[:5])
+for i, (p0, p1) in enumerate(probs):
+    label = model.predict(X_test[i:i+1])[0]
+    print(f"Sample {i}: P(0)={p0:.3f}  P(1)={p1:.3f} -> y_hat={label}")
+\end{lstlisting}
+
+\section*{Training: Maximum Conditional Likelihood}
+
+Because Logistic Regression outputs probabilities, we train it by \textbf{Maximum Conditional Likelihood Estimation (MCLE)}: find $\ww, w_0$ that make the observed labels most probable under the model.
+
+Given $N$ i.i.d.\ training pairs, the conditional likelihood is:
+$$L(\ww, w_0) = \prod_{i=1}^{N} P(y^{(i)} \mid \xx^{(i)}, \ww, w_0) = \prod_{i=1}^{N} \hat{y}^{(i)^{\,y^{(i)}}} (1-\hat{y}^{(i)})^{1-y^{(i)}}$$
+Taking the negative log converts the product to a sum and flips to minimization.
 
 \begin{definition}[Binary Cross-Entropy / Log Loss]
-For a dataset of $N$ examples, the Logistic Regression cost function $L(\mathbf{w})$ is defined as:
-$$L(\mathbf{w}) = -\frac{1}{N} \sum_{i=1}^N \left[ y^{(i)} \log(\hat{y}^{(i)}) + (1 - y^{(i)}) \log(1 - \hat{y}^{(i)}) \right]$$
-where $\hat{y}^{(i)} = \sigma(\mathbf{w}^T\xx^{(i)} + w_0)$ is the predicted probability.
+The Logistic Regression cost function is the negative log-likelihood, averaged over $N$ samples:
+$$\mathcal{L}(\ww, w_0) = -\frac{1}{N}\sum_{i=1}^{N}\Big[y^{(i)}\log\hat{y}^{(i)} + (1-y^{(i)})\log(1-\hat{y}^{(i)})\Big]$$
+where $\hat{y}^{(i)} = \sigma(\ww^T\xx^{(i)} + w_0)$.
 \end{definition}
 
-This loss function heavily penalizes the model if it confidently predicts the wrong class (e.g., predicting $\hat{y} \approx 0$ when the true label $y = 1$ causes the $-\log(\hat{y})$ term to approach infinity).
+\textbf{Why this loss works:} When $y=1$, only the $-\log\hat{y}$ term is active---if the model confidently predicts $\hat{y} \approx 0$, the loss $-\log(\hat{y}) \to \infty$, heavily penalizing the wrong confident prediction. Symmetrically for $y=0$.
 
-\section*{Optimization and Regularization}
+\begin{remark}[Equivalence to ERM]
+Minimizing the negative log-likelihood is equivalent to Empirical Risk Minimization (as established in the ERM framework) with the log-loss as the per-sample loss function. The probabilistic and optimization views of ML converge here.
+\end{remark}
 
-Unlike Linear Regression, setting the gradient of the Logistic Regression loss function to zero \textbf{does not yield a closed-form analytical solution} due to the non-linear $e^{-z}$ term in the sigmoid.
+\section*{Optimization}
 
+Setting $\nabla \mathcal{L} = 0$ yields no closed-form solution due to the non-linear $e^{-z}$ term inside $\sigma$. We must use \textbf{iterative optimization}.
+
+\textbf{Key fact:} The log-loss is a \textbf{strictly convex} function of $\ww$ (it is a linear combination of convex functions). This guarantees:
+\begin{itemize}
+    \item Every local minimum is the global minimum.
+    \item Gradient descent converges to the unique optimal $\ww^*$ (given appropriate learning rate).
+\end{itemize}
+
+The gradient of the log-likelihood (for gradient \textit{ascent}) has a remarkably clean form:
+$$\nabla_{\ww}\,\ell(\ww) = \sum_{i=1}^{N}\big(y^{(i)} - \sigma(\ww^T\xx^{(i)} + w_0)\big)\,\xx^{(i)}$$
+Each term is the prediction error $(y - \hat{y})$ scaled by the input $\xx$---the same structure as in linear regression.
+
+\section*{Regularization}
+
+\begin{remark}[Why Regularize?]
+If training data is \textbf{perfectly linearly separable}, the model can drive the loss to zero by pushing $\hat{y} \to 1$ or $\hat{y} \to 0$ for every sample. This requires $\|\ww\| \to \infty$, producing an infinitely steep sigmoid that memorizes the training data but generalizes poorly.
+\end{remark}
+
+Adding a penalty term prevents weight explosion:
 \begin{description}
-    \item[Optimization:] We must use iterative optimization techniques, such as \textbf{Gradient Descent} (or Gradient Ascent, if maximizing likelihood directly). Fortunately, the Log-Loss function is strictly \textbf{convex}, meaning Gradient Descent is guaranteed to find the global optimal weights $\mathbf{w}^*$.
-    \item[Regularization:] If the training data is perfectly linearly separable, the algorithm will try to push the probabilities to exactly $1.0$ and $0.0$. To do this, the weights $||\mathbf{w}||$ will grow towards infinity, leading to severe overfitting. To prevent this, we must add $L_1$ (Lasso) or $L_2$ (Ridge) regularization penalties to the loss function.
+    \item[$L_2$ (Ridge):] $\mathcal{L}_{\text{reg}} = \mathcal{L}(\ww) + \beta\sum_j w_j^2$ \quad---\quad prefers many small weights; smooth optimization.
+    \item[$L_1$ (Lasso):] $\mathcal{L}_{\text{reg}} = \mathcal{L}(\ww) + \alpha\sum_j |w_j|$ \quad---\quad drives some weights to exactly zero (feature selection).
 \end{description}
+
+In \texttt{sklearn}, regularization strength is controlled by the parameter \texttt{C}, where $\texttt{C} = 1/\lambda$. Smaller \texttt{C} means stronger regularization.
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.linear_model import LogisticRegression
+import numpy as np
+
+# Compare regularization strengths via the C parameter
+# C = 1/lambda: smaller C = stronger regularization
+for C_val in [0.01, 1.0, 100.0]:
+    model = LogisticRegression(C=C_val, penalty='l2', max_iter=1000)
+    model.fit(X_train, y_train)
+    w_norm = np.linalg.norm(model.coef_)
+    acc = model.score(X_test, y_test)
+    print(f"C={C_val:6.2f}  ||w||={w_norm:.4f}  Acc={acc:.3f}")
+# Strong regularization (small C) -> smaller weights, may underfit
+# Weak regularization (large C) -> larger weights, may overfit
+\end{lstlisting}
+
+\section*{Multi-Class Extension: Softmax Regression}
+
+Binary Logistic Regression generalizes to $K$ classes via the \textbf{softmax function}. Instead of a single weight vector, we learn a weight matrix $\mathbf{W} = [\ww_1, \dots, \ww_K]$ with one vector per class:
+$$P(y{=}k \mid \xx, \mathbf{W}) = \text{softmax}(\mathbf{W}, \xx, k) = \frac{e^{\ww_k^T\xx}}{\sum_{j=1}^{K} e^{\ww_j^T\xx}}$$
+The softmax normalizes the $K$ raw scores into a valid probability distribution that sums to 1. For $K{=}2$, this reduces exactly to the sigmoid.
+
+The corresponding loss is the \textbf{categorical cross-entropy}:
+$$\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N}\sum_{k=1}^{K}\mathbf{1}[y^{(i)}{=}k]\;\log P(y{=}k \mid \xx^{(i)})$$
+
+\begin{lstlisting}[style=pythonstyle]
+from sklearn.datasets import load_iris
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+
+# Iris: 3 classes -> softmax is used automatically
+X, y = load_iris(return_X_y=True)
+X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.3,
+                                           random_state=0)
+
+# multi_class='multinomial' uses softmax (default in sklearn)
+model = LogisticRegression(multi_class='multinomial', max_iter=200)
+model.fit(X_tr, y_tr)
+
+print(f"Classes:  {model.classes_}")
+print(f"Accuracy: {model.score(X_te, y_te):.3f}")
+# Each row of predict_proba sums to 1 across all K classes
+print(f"Probs (first sample): {model.predict_proba(X_te[:1])[0]}")
+\end{lstlisting}

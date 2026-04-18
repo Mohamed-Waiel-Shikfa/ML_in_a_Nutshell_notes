@@ -1,0 +1,202 @@
+\chapter*{ML Tasks: Supervised, Unsupervised, and Reinforcement Learning}
+\addcontentsline{toc}{chapter}{ML Tasks: Supervised, Unsupervised, and Reinforcement Learning}
+
+Machine learning algorithms are organized by the kind of feedback available during training.
+The three fundamental paradigms---\textbf{supervised learning (SL)}, \textbf{unsupervised learning (UL)}, and \textbf{reinforcement learning (RL)}---differ in what data the learner receives, what signal drives improvement, and what the learned model $f$ ultimately represents.
+
+\section*{The General ML Scheme}
+
+Every ML system learns a mapping from an input (feature) space to an output (prediction) space:
+
+\begin{definition}[Prediction Function]
+Given a feature space $X$ and an output space $Y$, the goal of ML is to learn a function $f: X \to Y$ from example data such that $f$ approximates the true (unknown) mapping $F$ with small error on unseen inputs.
+\end{definition}
+
+The design choices that define a particular ML system are:
+\begin{itemize}
+    \item \textbf{Hypothesis space} $\mathcal{H}$: the family of candidate functions (e.g., linear models, decision trees, neural networks).
+    \item \textbf{Loss / reward signal}: errors from labels (SL), similarity measures (UL), or rewards from an environment (RL).
+    \item \textbf{Data}: labeled, unlabeled, or generated through interaction.
+\end{itemize}
+
+% ============================================================
+\section*{Supervised Learning}
+% ============================================================
+
+In supervised learning, a \textbf{teacher} (supervisor) provides the learner with labeled training examples $\{(\xx^{(i)}, y^{(i)})\}_{i=1}^N$.
+The label $y^{(i)}$ tells the learner the correct output for input $\xx^{(i)}$.
+Training proceeds by comparing predictions $f(\xx^{(i)})$ to true labels $y^{(i)}$, quantifying the error via a \textbf{loss function} $\ell$, and adjusting the model to reduce that error.
+
+\begin{remark}[Error-Driven Learning]
+The label provides a precise error signal: the learner knows exactly \emph{how wrong} each prediction is. This is what makes SL the most data-efficient paradigm when labels are available.
+\end{remark}
+
+\subsection*{Classification}
+
+\textbf{Classification} assigns a discrete label to each input.
+
+\begin{definition}[Classification]
+Given a discrete label set $Y = \{c_1, c_2, \dots, c_n\}$ and a feature space $X$ of dimension $k$, learn a function $f: X \to Y$ that predicts which class $y \in Y$ a new input $\xx \in X$ belongs to.
+\end{definition}
+
+\begin{description}
+    \item[Binary classification ($|Y| = 2$):] $y \in \{0, 1\}$ or $\{-1, +1\}$.
+        Examples: spam vs.\ not spam, cat vs.\ dog, healthy vs.\ sick.
+    \item[Multi-class classification ($|Y| > 2$):] $y \in \{c_1, \dots, c_n\}$.
+        Examples: weather type (cloudy, snowy, clear), animal species, document topic.
+\end{description}
+
+\textbf{Geometric view.}
+Classification learns a \textbf{decision boundary} (separator) in the feature space that partitions regions by class.
+The separator can be linear (a hyperplane) or arbitrarily non-linear.
+At test time, a new input $\xx^*$ is classified by which region it falls into.
+
+\begin{lstlisting}[style=pythonstyle]
+# Classification: Iris dataset with a Decision Tree
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
+
+X, y = load_iris(return_X_y=True)             # 150 samples, 4 features, 3 classes
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42
+)
+clf = DecisionTreeClassifier(max_depth=3)
+clf.fit(X_train, y_train)                     # Learn decision boundary
+y_pred = clf.predict(X_test)                  # Classify new samples
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
+\end{lstlisting}
+
+\subsection*{Regression}
+
+\textbf{Regression} predicts a continuous value.
+
+\begin{definition}[Regression]
+Given a continuous output space $Y \subseteq \mathbb{R}^m$ (typically $m=1$) and a feature space $X$ of dimension $k$, learn $f: X \to Y$ that predicts the response $\yy \in Y$ for a new input $\xx \in X$.
+\end{definition}
+
+\begin{description}
+    \item[Univariate regression:] One predictor variable.
+        Example: predict electricity usage from temperature alone.
+    \item[Multivariate regression:] Multiple predictor variables.
+        Example: predict electricity usage from temperature, time of day, and day of week.
+\end{description}
+
+\textbf{Geometric view.}
+Regression learns a \textbf{curve or surface} in the joint feature--output space that best fits the observed data points.
+At test time, a new $\xx^*$ is mapped onto this curve to produce a predicted $\hat{y}$.
+
+Real-world examples include: house price prediction from (area, rooms, neighborhood), dose--response relationships in medicine, and advertising spend vs.\ sales revenue.
+
+\subsection*{The SL Workflow}
+
+A typical supervised learning pipeline follows these steps:
+
+\begin{enumerate}
+    \item \textbf{Collect data:} Gather raw data representative of the problem domain. The dataset should cover all relevant cases proportionally to their real-world frequency.
+    \item \textbf{Label data:} A supervisor annotates each example with the correct output $y$.
+    \item \textbf{Extract features:} Transform raw data (images, text, signals) into a numerical feature vector $\xx \in \mathbb{R}^k$.
+    \item \textbf{Train model:} Select a hypothesis space $\mathcal{H}$, a loss function $\ell$, and an optimization method. Minimize empirical risk over the training set.
+    \item \textbf{Predict:} Apply the trained model $f$ to new, unseen inputs.
+\end{enumerate}
+
+\subsection*{The Cost of Labels}
+
+Supervised learning is powerful but expensive. Data labeling is:
+\begin{itemize}
+    \item \textbf{Time-consuming and costly:} Human annotators must inspect every example---thousands or millions of them.
+    \item \textbf{Error-prone:} Image labeling requires subjective judgment (is that a ``cat'' or a ``cat with a mask''?). Handwritten digit recognition (OCR) introduces transcription errors. Text annotation (document classification, entity tagging) is lengthy and inconsistent across annotators.
+    \item \textbf{Domain-dependent:} Medical imaging requires expert radiologists; legal documents require trained lawyers.
+\end{itemize}
+
+These costs motivate unsupervised and self-supervised approaches, including modern LLMs that use self-supervised pre-training (and optionally RLHF fine-tuning) to reduce dependence on manual labels.
+
+% ============================================================
+\section*{Unsupervised Learning}
+% ============================================================
+
+In unsupervised learning, the training data consists of inputs \emph{only}---no labels are provided.
+The goal is to discover \textbf{hidden structure}, patterns, or relationships within the data.
+
+\begin{remark}[No Error Signal]
+Without labels, there is no ``correct answer'' to compare against. Instead, UL algorithms rely on \textbf{similarity measures} and structural assumptions (inductive biases) to organize the data.
+\end{remark}
+
+\subsection*{Clustering}
+
+\textbf{Clustering} groups data items so that items within the same cluster are more similar to each other than to items in other clusters.
+
+\begin{definition}[Clustering]
+Given $N$ data points $\{\xx^{(i)}\}_{i=1}^N$ in a $k$-dimensional feature space $\mathcal{F}^k$ and a similarity/dissimilarity measure, partition the data into $n$ clusters. Formally, learn $f: \mathcal{F}^k \to \{1, 2, \dots, n\}$.
+\end{definition}
+
+Key challenges:
+\begin{itemize}
+    \item The number of clusters $n$ is usually \emph{not known} in advance and must be estimated.
+    \item The choice of similarity measure is an \textbf{inductive bias}: Euclidean distance, cosine similarity, and correlation each yield different clusterings of the same data.
+    \item Ambiguity is inherent---``group these people into clusters'' has many valid answers depending on the criteria (age? height? interests?).
+\end{itemize}
+
+\begin{lstlisting}[style=pythonstyle]
+# Clustering: KMeans on synthetic blobs
+from sklearn.datasets import make_blobs
+from sklearn.cluster import KMeans
+
+X, _ = make_blobs(n_samples=300, centers=4,   # 4 ground-truth clusters
+                  cluster_std=0.8, random_state=42)
+kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
+kmeans.fit(X)                                  # Discover cluster structure
+labels = kmeans.labels_                        # Cluster assignment per point
+centers = kmeans.cluster_centers_              # Centroid of each cluster
+print(f"Inertia (within-cluster SSE): {kmeans.inertia_:.1f}")
+\end{lstlisting}
+
+\subsection*{Dimensionality Reduction / Compression}
+
+\textbf{Dimensionality reduction} identifies that high-dimensional data often lies on a lower-dimensional manifold. By finding hidden variables or redundant features, we can compress the representation without significant information loss.
+
+Example: if data in $\mathbb{R}^3$ actually lies on a 2D plane, one feature is irrelevant and can be discarded. Principal Component Analysis (PCA) is the classical technique.
+
+\subsection*{Generative Models}
+
+\textbf{Generative models} estimate the probability density $p(\xx)$ of the data---the distribution that generated the observed samples. This captures probabilistic relationships and correlations among features, enabling the model to generate new, plausible data points.
+
+% ============================================================
+\section*{Reinforcement Learning}
+% ============================================================
+
+Reinforcement learning differs fundamentally from both SL and UL: there are no labels \emph{and} no pre-collected dataset.
+
+\begin{definition}[Reinforcement Learning]
+An \textbf{agent} interacts with an \textbf{environment} by taking actions, observing states, and receiving \textbf{rewards} (or costs). The goal is to learn an optimal \textbf{policy}---a mapping from states to actions---that maximizes cumulative reward over time.
+\end{definition}
+
+\begin{remark}
+The agent must generate its own training data through exploration. Rewards may be sparse (received only after many actions) and delayed, making credit assignment difficult. RL addresses \textbf{sequential decision-making}: each action affects future states and rewards.
+\end{remark}
+
+RL is not covered in depth in this course (see 15-281 for a full treatment), but the paradigm is important to recognize: it underlies game-playing AI, robotics, and the RLHF stage used to fine-tune modern LLMs.
+
+% ============================================================
+\section*{Comparison of the Three Paradigms}
+% ============================================================
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{} l c c c @{}}
+\toprule
+& \textbf{Supervised} & \textbf{Unsupervised} & \textbf{Reinforcement} \\
+\midrule
+\textbf{Data}            & Labeled       & Unlabeled       & Not given (agent explores) \\
+\textbf{Feedback signal} & Error from labels & Similarity measures & Rewards / costs \\
+\textbf{Training data}   & Given         & Given           & Generated by agent \\
+\textbf{Goal}            & Predict $y$ for new $\xx$ & Discover structure & Learn optimal policy \\
+\textbf{Typical tasks}   & Classification, regression & Clustering, PCA, density est. & Sequential decisions \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remark}[Choosing a Paradigm]
+Having labeled data is a clear advantage---SL provides the strongest learning signal. But acquiring labels is expensive and error-prone, which is why UL and self-supervised methods are increasingly important. RL applies when the problem is inherently sequential and no static dataset can capture the dynamics.
+\end{remark}

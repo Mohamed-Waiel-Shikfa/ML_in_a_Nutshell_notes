@@ -88,3 +88,31 @@
 
 
 \newcommand{\vect}[2]{\begin{pmatrix} #1 \\ #2 \end{pmatrix}}
+
+% ------------------------------
+% Code Listing Environment
+% ------------------------------
+\usepackage{listings}
+\definecolor{codebg}{HTML}{F5F5F5}
+\definecolor{codegreen}{HTML}{228B22}
+\definecolor{codegray}{HTML}{6B6B6B}
+\definecolor{codepurple}{HTML}{9B59B6}
+\definecolor{codeblue}{HTML}{2980B9}
+
+\lstdefinestyle{pythonstyle}{
+    backgroundcolor=\color{codebg},
+    commentstyle=\color{codegreen}\itshape,
+    keywordstyle=\color{codeblue}\bfseries,
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{codegray},
+    numbers=none,
+    language=Python,
+    showstringspaces=false,
+    tabsize=4,
+    morekeywords={self, True, False, None, as, with, lambda},
+    aboveskip=0.5em,
+    belowskip=0.5em,
+}
