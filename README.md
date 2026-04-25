@@ -5,10 +5,26 @@ This repository contains my personal notes for the course *15-288 ML in a Nutshe
 The notes are based on the course material.
 
 ## Contents
-
-- `notes.pdf`: Compiled PDF version of the notes
-- `notes.tex`: LaTeX source file for the notes
-- `preamble.tex`: LaTeX preamble file with document settings and package imports
+.
+├── chapters                // Contains latex notes of each lecture
+├── cheatsheet              // Condensed 8 pages of the material
+│   ├── cheatsheet.pdf
+│   ├── cheatsheet.synctex
+│   └── cheatsheet.tex
+├── lec                     // Professor lecture slides, notebooks and datasets
+│   ├── 288-S26-{1-25}
+│   └── datasets
+├── LICENSE
+├── notes                   // Comprehensive notes of the material
+│   ├── notes.pdf
+│   ├── notes.synctex
+│   ├── notes.tex
+│   └── preamble.tex
+├── README.md
+└── roadmap                 // Simple 1 page roadmap of the material
+    ├── 1page_roadmap.pdf
+    ├── 1page_roadmap.synctex
+    └── 1page_roadmap.tex
 
 ## About the Notes
 
@@ -21,6 +37,8 @@ These notes are not official course material and may contain errors or personal 
 ## Usage
 
 Feel free to use these notes for personal study. If you find any errors or have suggestions for improvements, please open an issue in this repository.
+
+I suggest going over the roadmap once then over the cheatsheet twice. Then input the notes into chat or gemeni and ask for questions; then once you figured out where your weaknesses are go and read notes on that specific topic.
 
 ## Contributing
 
