@@ -1,0 +1,158 @@
+\documentclass[8pt,landscape]{extarticle}
+\usepackage[margin=0.3in]{geometry}
+\usepackage{multicol}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{mdframed}
+
+% Reduce spacing globally for maximum efficiency
+\setlist{nosep, leftmargin=*}
+\titleformat{\section}{\large\bfseries\color{blue!80!black}}{\thesection}{1em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries\color{red!70!black}}{\thesubsection}{1em}{}
+\titlespacing*{\section}{0pt}{1.5ex}{1ex}
+\titlespacing*{\subsection}{0pt}{1ex}{0.5ex}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2pt}
+
+\begin{document}
+\begin{multicols*}{3}
+
+\begin{center}
+    \Large \textbf{15-288 Machine Learning in a Nutshell - Cheat Sheet} \\
+    \footnotesize Condensed Reference Guide
+\end{center}
+
+\section{Introduction \& ML Paradigms}
+\textbf{Machine Learning (ML):} Algorithms that improve automatically through experience $E$ regarding tasks $T$ and performance $P$ %
+\begin{itemize}
+    \item \textbf{Supervised Learning (SL):} Labeled data $\{(x^{(i)}, y^{(i)})\}$. Goal: predict $y$ for new $x$. Feedback: Error from labels %.
+    \item \textbf{Unsupervised Learning (UL):} Unlabeled data $\{x^{(i)}\}$. Goal: discover structure (clusters, manifolds). Feedback: Similarity measures %.
+    \item \textbf{Reinforcement Learning (RL):} Sequential actions in environment. Goal: maximize cumulative reward %.
+\end{itemize}
+\textbf{Inductive Bias:} Assumptions a learning algorithm makes to generalize beyond training data (e.g., Occam's Razor prefers simpler hypotheses) %.
+
+\section{Supervised Learning \& ERM}
+\textbf{Dataset:} $D = \{(x^{(i)}, y^{(i)})\}_{i=1}^{m}$ where $x^{(i)} \in \mathbb{R}^d$ %.\\
+\textbf{Hypothesis Class $\mathcal{H}$:} Set of candidate functions $f_\theta$ mapped by parameters $\theta$ %.\\
+\textbf{Loss Function $\ell(f_\theta(x), y)$:} Quantifies error.
+\begin{itemize}
+    \item 0/1 Loss (Classification): $\ell_{0/1} = 1$ if $f(x) \neq y$, $0$ otherwise %.
+\end{itemize}
+\textbf{Empirical Risk Minimization (ERM):} Find $\theta^*$ that minimizes sample average loss %:
+$$ \theta^* = \arg\min_\theta \frac{1}{m} \sum_{i=1}^m \ell(f_\theta(x^{(i)}), y^{(i)}) $$ %
+\textbf{Generalization Error ($L_{gen}$):} Expected loss on unseen data %. Memorizing training data reduces empirical risk but increases $L_{gen}$ (Overfitting) %.
+
+\section{Generalization, Bias-Variance, \& CV}
+\textbf{Bias:} Error from overly simplistic assumptions (Underfitting) %.\\
+\textbf{Variance:} Error from sensitivity to specific training set fluctuations (Overfitting) %.\\
+$$ \text{Error} \approx \text{Bias}^2 + \text{Variance} + \text{Irreducible Noise} $$ %
+\textbf{Cross-Validation (CV):}
+\begin{itemize}
+    \item \textbf{Hold-Out:} Split data into Train and Test. Wastes data, high variance in split %.
+    \item \textbf{K-Fold CV:} Partition data into $K$ folds. Train on $K-1$, validate on 1. Rotate and average metrics %.
+\end{itemize}
+
+\section{Regression \& Ordinary Least Squares}
+Predict continuous $y \in \mathbb{R}$. Hypothesis: Polynomials $f_\theta(x) = \sum_{j=0}^M \theta_j x^j$ %.\\
+\textbf{OLSR (Ordinary Least Squares):} Linear model $\hat{y} = Xw$. Minimize Mean Squared Error (MSE) %.
+$$ \mathcal{L}(w) = \|Xw - y\|^2_2 = (Xw - y)^T(Xw - y) $$ %
+\textbf{Closed-Form Solution:} Set $\nabla_w \mathcal{L} = 0 \implies w^* = (X^T X)^{-1} X^T y$ %.
+
+\section{Classification \& K-Nearest Neighbors}
+Predict discrete $y$. K-NN is a non-parametric instance-based learner %.
+\begin{itemize}
+    \item \textbf{Inference:} Find $k$ closest training points to test point $x_{test}$. Return majority class vote %.
+    \item \textbf{Distance Metrics:} Euclidean ($L_2$), Manhattan ($L_1$) %.
+    \item \textbf{Complexity:} $k=1$ (High variance/overfits), large $k$ (High bias/underfits) %.
+\end{itemize}
+\textbf{Metrics:}
+\begin{itemize}
+    \item \textbf{Accuracy:} $(TP + TN) / (P + N)$ %.
+    \item \textbf{Precision:} $TP / (TP + FP)$ %.
+    \item \textbf{Recall:} $TP / (TP + FN)$ %.
+    \item \textbf{F1-Score:} Harmonic mean $2 \cdot \frac{Prec \cdot Rec}{Prec + Rec}$ %.
+\end{itemize}
+
+\section{Outliers \& Feature Preprocessing}
+\textbf{Outliers:}
+\begin{itemize}
+    \item \textbf{Z-Score:} $z = (x - \mu)/\sigma$. Flag if $|z| > 3$ (Assumes Normality) %.
+    \item \textbf{IQR Method:} $IQR = Q_3 - Q_1$. Flag if $< Q_1 - 1.5 \cdot IQR$ or $> Q_3 + 1.5 \cdot IQR$ %.
+\end{itemize}
+\textbf{Correlations:}
+Pearson $r = \frac{\text{Cov}(X,Y)}{\sigma_X \sigma_Y} \in [-1, 1]$ %. Measures linear relationship. Multicollinearity if $|r_{ij}| > 0.8$ %.\\
+\textbf{Feature Transformations:}
+Map input $x \in \mathbb{R}^d$ to higher dimension $\Phi(x) \in \mathbb{R}^m$ for non-linear separation %. Degree-$p$ polynomial gives $\binom{d+p}{p}$ features %.
+
+\section{Feature Engineering for Images}
+\textbf{Image Tensor:} $I \in \mathbb{R}^{H \times W \times C}$. Grayscale $C=1$, RGB $C=3$ %.
+\begin{itemize}
+    \item \textbf{Color Histograms:} Distribution of pixel intensities. Invariant to rotation/translation, loses spatial layout %.
+    \item \textbf{Sobel Operators:} Edge detection via gradient. $G_x = I * K_x$, $G_y = I * K_y$. Magnitude $M = \sqrt{G_x^2 + G_y^2}$, Direction $\theta = \arctan(G_y/G_x)$ %.
+    \item \textbf{Unsharp Masking:} $I_{details} = I_{orig} - I_{smooth}$. Sharpened $I_{sharp} = I_{orig} + \alpha \cdot I_{details}$ %.
+\end{itemize}
+\textbf{Keypoint Detectors \& Descriptors:}
+\begin{itemize}
+    \item \textbf{Harris Corners:} Rotation invariant, not scale invariant %.
+    \item \textbf{SIFT:} Uses Difference of Gaussians (DoG). Scale, rotation, affine invariant. Uses $L_2$ norm for matching %.
+    \item \textbf{ORB / BRIEF:} Binary descriptors (256-bit). Compares intensities. Matching via fast Hamming distance (XOR + popcount) %.
+\end{itemize}
+\textbf{HOG (Histogram of Oriented Gradients):} Computes gradient orientation histograms locally. Normalizing over overlapping blocks makes it illumination robust %.\\
+\textbf{Template Matching:} Slide template over image, calculate Cross-Correlation. Fails on rotation/scaling %.
+
+\section{Linear Models \& Gradient Descent}
+\textbf{Linear Decision Boundary:} $w^T x + b = 0$. Geometric margin: $\mu(x) = y(w^T x + b) / \|w\|$ %. \\
+\textbf{Optimization:} Iteratively step opposite to gradient to minimize loss %:
+$$ w_{t+1} = w_t - \eta \nabla \mathcal{L}(w_t) $$ %
+\begin{itemize}
+    \item \textbf{BGD:} Computes gradient over all $N$ samples %.
+    \item \textbf{SGD:} Computes gradient over 1 sample %.
+    \item \textbf{Mini-Batch:} Computes gradient over $B$ samples %.
+\end{itemize}
+
+\section{Support Vector Machines (SVM)}
+Goal: Maximize the margin separating classes. Formulation %:
+$$ \min_{w,b} \frac{1}{2} \|w\|^2 \quad \text{s.t.} \quad y^{(i)}(w^T x^{(i)} + b) \geq 1 $$ %
+\textbf{Soft Margin SVM:} Introduce slack variables $\xi_i$ to handle overlap. Hyperparameter $C$ balances margin size vs classification errors (high $C \implies$ lower bias, higher variance) %.\\
+\textbf{Kernel Trick:} Implicitly map to higher dimension using a kernel function $K(x, z) = \Phi(x)^T \Phi(z)$. Examples: RBF, Polynomial %.
+
+\section{Logistic Regression}
+Used for binary classification outputs probabilities %.
+\textbf{Sigmoid Function:} $\sigma(z) = \frac{1}{1 + e^{-z}} \in (0, 1)$ %.\\
+\textbf{Model:} $P(y=1|x) = \sigma(w^T x + b)$ %.\\
+\textbf{Loss Function (Binary Cross-Entropy):}
+$$ \mathcal{L} = -\frac{1}{N} \sum [y_i \log(\hat{y}_i) + (1-y_i) \log(1-\hat{y}_i)] $$ %
+
+\section{Decision Trees}
+Non-parametric model dividing feature space into axis-aligned rectangles %.
+\begin{itemize}
+    \item \textbf{Splitting Criteria:} Maximize Information Gain (Entropy reduction) or minimize Gini Impurity %.
+    \item \textbf{Pruning:} Restricting max depth, min samples per leaf to prevent massive overfitting %.
+\end{itemize}
+
+\section{Neural Networks (MLP \& CNN)}
+\textbf{Multi-Layer Perceptron (MLP):} Composed of dense (fully connected) layers %. Layer equation: $h = g(W x + b)$ where $g$ is an activation function (ReLU, Sigmoid, Tanh) %.\\
+\textbf{Backpropagation:} Uses chain rule to calculate gradients layer-by-layer %.\\
+\textbf{Convolutional Neural Networks (CNN):} Specially designed for grid-like data (images) %.
+\begin{itemize}
+    \item \textbf{Conv Layer:} Applies sliding filters to extract local features %.
+    \item \textbf{Pooling:} Downsamples (Max/Average) spatial dimensions, establishing translation invariance %.
+\end{itemize}
+
+\section{NLP, Transformers \& GenAI}
+\textbf{Transformers:} Replaced RNNs by using Attention mechanisms %.
+\begin{itemize}
+    \item \textbf{Self-Attention:} Weighs token relationships: $\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$ %.
+    \item \textbf{BERT:} Encoder-only, trained bidirectionally. Good for NLU (classification, tagging) %.
+    \item \textbf{GPT:} Decoder-only, auto-regressive next-token prediction. Generative AI standard %.
+\end{itemize}
+\textbf{Hugging Face Ecosystem:} High-level libraries (`transformers`, `datasets`) to abstract PyTorch implementations into simple APIs %. Tokenization turns strings into `input_ids` and `attention_mask` %.
+
+\rule{\linewidth}{0.5pt}
+\scriptsize
+\textit{Note: Compile with pdflatex or xelatex. Adjust geometries if specific paper-size scaling is required for printing.}
+\end{multicols*}
+\end{document}
