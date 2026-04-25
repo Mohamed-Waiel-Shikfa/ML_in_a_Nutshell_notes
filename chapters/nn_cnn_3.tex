@@ -1,0 +1,66 @@
+\chapter*{Neural Networks 3: Convolutional Neural Networks (CNN)}
+\addcontentsline{toc}{chapter}{Neural Networks 3: Convolutional Neural Networks (CNN)}
+
+\section*{Limitations of MLPs for Structured Data}
+
+Traditional Multi-Layer Perceptrons (MLPs) take a single 1D column vector as input. When dealing with structured, high-dimensional data like images, this architecture presents two major issues[cite: 4, 6]:
+\begin{enumerate}
+    \item \textbf{Space-Time Complexity:} An MLP requires fully connected layers. For a $1000 \times 1000$ RGB image, flattening yields $3 \times 10^6$ inputs. Connecting this to a hidden layer of 1 million units requires $3 \times 10^{12}$ parameters (weights)[cite: 3]. This leads to unmanageable memory constraints and high risks of overfitting.
+    \item \textbf{Destruction of Spatial Structure:} By flattening an image into a 1D array, the MLP ignores local spatial correlations (e.g., adjacent pixels forming an edge)[cite: 5, 8]. If you consistently shuffle all the pixels in an image dataset, an MLP's final performance remains exactly the same, highlighting its insensitivity to structural order[cite: 7].
+\end{enumerate}
+
+\section*{Core Principles of CNNs}
+
+Convolutional Neural Networks (CNNs) are explicitly designed to leverage the inherent spatial and temporal coherence of data (like images, audio, and text)[cite: 12].
+
+\begin{definition}[Local Connectivity \& Receptive Fields]
+Instead of connecting every input pixel to a hidden unit, a CNN unit is only connected to a small, localized region of the input space known as its \textbf{receptive field} (e.g., a $3 \times 3$ or $5 \times 5$ patch)[cite: 20]. This dramatically reduces the number of operations and parameters[cite: 13].
+\end{definition}
+
+\begin{definition}[Weight Sharing \& Feature Maps]
+A CNN applies a \textbf{convolutional filter} (or kernel) across the entire image[cite: 20, 24]. The weights and bias of this filter are \textbf{shared} for all spatial locations[cite: 22]. This assumes that if a feature (like a vertical edge) is useful to detect in one part of the image, it is equally useful in another[cite: 27, 28, 29]. The output of applying one filter across the image is called a \textbf{feature map}[cite: 24, 25].
+\end{definition}
+
+\section*{Key Architectural Layers}
+
+A standard CNN pipeline alternates feature extraction layers with dimensionality reduction, concluding with a standard classification head[cite: 10, 38].
+
+\subsection*{1. Convolutional Layer}
+This layer applies multiple filters (a \textit{filter bank}) to the input[cite: 31, 32]. Each filter extracts a different type of feature, resulting in multiple, parallel feature maps (often representing a 3D volume of features, or channels)[cite: 24, 31].
+\begin{itemize}
+    \item \textbf{Stride:} The step size by which the filter slides across the image[cite: 20].
+    \item \textbf{Padding:} Adding zeros around the borders of the input to control the spatial dimensions of the output feature map[cite: 21].
+\end{itemize}
+
+\subsection*{2. Pooling Layer}
+Usually applied immediately after a convolutional layer, pooling acts as a subsampling mechanism to compress the feature maps[cite: 33, 34].
+\begin{itemize}
+    \item \textbf{Max-Pooling:} Outputs the maximum activation within a given region (e.g., a $2 \times 2$ window)[cite: 35].
+    \item \textbf{Purpose:} It provides translational invariance—once a feature is detected, its exact location is less important than its relative presence. It also significantly reduces the spatial dimensions and parameter count for subsequent layers[cite: 36, 37].
+\end{itemize}
+
+\subsection*{3. Flattening and Dense (Fully-Connected) Layers}
+After hierarchical feature extraction, the 3D volume of feature maps is \textbf{flattened} into a 1D vector[cite: 38]. This vector is fed into a standard dense MLP, which acts as the final probabilistic classifier (often ending in a Softmax activation)[cite: 38, 40].
+
+\begin{remark}[Joint Training]
+The beauty of a CNN is that the feature extractor (convolutional + pooling layers) and the classifier (dense layers) are \textbf{jointly trained} end-to-end via backpropagation[cite: 40]. The network learns the optimal filters directly from the data.
+\end{remark}
+
+\section*{Parameter Efficiency Example}
+
+To understand the efficiency of weight sharing, consider an input image of $28 \times 28$ pixels.
+\begin{itemize}
+    \item A convolutional layer applying $32$ distinct $3 \times 3$ filters requires only: \\
+    $(3 \times 3 \text{ weights} + 1 \text{ bias}) \times 32 \text{ filters} = \textbf{320 parameters}$[cite: 60, 61].
+    \item A fully-connected dense layer mapping the resulting $4608$ flattened features to $128$ hidden units requires: \\
+    $(4608 \times 128) + 128 \text{ biases} = \textbf{589,952 parameters}$[cite: 64].
+\end{itemize}
+This demonstrates how convolutional layers extract rich representations for a tiny fraction of the parameter cost of dense layers.
+
+\section*{Transfer Learning}
+
+Because training deep CNNs from scratch requires vast amounts of data and compute, \textbf{Transfer Learning} is standard practice. A network pre-trained on a massive dataset (like ImageNet) can be reused for new tasks:
+\begin{description}
+    \item[Fixed Feature Extractor:] The pre-trained convolutional layers are frozen. Only the final dense classification head is replaced and trained on the new, smaller dataset.
+    \item[Fine-Tuning:] The final dense layers are replaced, and the error gradients are backpropagated through the entire network, subtly adjusting (fine-tuning) the pre-trained convolutional weights for the new domain.
+\end{description}

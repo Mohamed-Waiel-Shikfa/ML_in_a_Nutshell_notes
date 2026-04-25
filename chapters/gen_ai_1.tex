@@ -1,0 +1,88 @@
+\chapter*{Natural Language Processing, Transformers, and GenAI}
+\addcontentsline{toc}{chapter}{Natural Language Processing, Transformers, and GenAI}
+
+\section*{Introduction to Natural Language Processing (NLP)}
+
+\begin{definition}[NLP]
+Natural Language Processing (NLP) is an interdisciplinary subfield of Linguistics, Computer Science, and Artificial Intelligence. It focuses on the interactions between computers and human language, aiming to program computers to process, analyze, and generate natural language data.
+
+NLP generally encompasses two main sub-goals:
+\begin{itemize}
+    \item \textbf{Natural Language Understanding (NLU):} Enabling computers to comprehend text and extract semantic meaning (e.g., Information Extraction, Sentiment Analysis, Text Classification).
+    \item \textbf{Natural Language Generation (NLG):} Enabling computers to create human-like language outputs (e.g., Translation, Summarization, Dialogue generation).
+\end{itemize}
+\end{definition}
+
+\section*{Evolution of NLP Techniques}
+
+The field of NLP has evolved through several distinct paradigms:
+\begin{enumerate}
+    \item \textbf{Rule-based Systems:} Relied on regular expressions and hand-crafted grammar rules (e.g., subject-verb agreement). \textit{Limitations:} Highly brittle, difficult to scale, and cannot generalize beyond explicitly defined rules.
+    \item \textbf{Statistical NLP:} Utilized probability distributions, $n$-grams (probability of the next word given $n$ previous words), and metrics like TF-IDF (Term Frequency-Inverse Document Frequency). \textit{Limitations:} Lacks a deep understanding of semantic meaning beyond raw word frequencies.
+    \item \textbf{Neural NLP (RNNs/LSTMs):} Transitioned to representing words as dense vectors (embeddings) and processing them sequentially. \textit{Limitations:} Sequential processing is slow, struggles with long-term memory loss (forgetting distant context), and forces all information through a single hidden state bottleneck.
+    \item \textbf{Transformers:} Replaced sequential processing with parallel attention mechanisms, allowing the model to learn relationships between any pair of words instantly. They are highly scalable and serve as the foundation for modern Large Language Models (LLMs).
+\end{enumerate}
+
+\section*{Tokenization and Embeddings}
+
+Before text can be ingested by a neural network, it must be converted into numerical representations through a two-step process.
+
+\subsection*{1. Tokenization}
+Tokenization breaks raw text into smaller, processable units known as tokens.
+\begin{itemize}
+    \item \textbf{Character-level:} Features a very small vocabulary and eliminates the Out-Of-Vocabulary (OOV) problem. However, individual characters lack semantic meaning and result in excessively long sequences.
+    \item \textbf{Word-level:} Tokens carry clear semantic meaning, but the vocabulary size explodes. It handles rare or misspelled words poorly (the OOV problem) and ignores word structures (prefixes/suffixes).
+    \item \textbf{Sub-word (e.g., WordPiece):} The modern standard. It balances vocabulary size by generating sub-word units based on frequency. Frequent words remain intact, while rare words are broken into meaningful sub-components (e.g., "playing" $\to$ "play" + "ing"), effectively handling unseen words while maintaining semantic density.
+\end{itemize}
+
+\subsection*{2. Word Embeddings}
+Embeddings map discrete tokens to continuous numeric vectors.
+\begin{itemize}
+    \item \textbf{Bag of Words (BoW) / One-Hot Encoding:} Creates sparse, high-dimensional vectors that ignore word order and fail to capture semantic similarity.
+    \item \textbf{Word2Vec (Neural Embeddings):} Learns low-dimensional, dense vector representations based on context prediction. It successfully captures semantic meaning, ensuring that words with similar contexts are mapped closely together in the vector space.
+\end{itemize}
+
+\section*{The Transformer Architecture}
+
+\begin{definition}[Self-Attention]
+The core innovation of the Transformer. Instead of processing words sequentially, every word in a sequence attends to all other words simultaneously to gather context. Learned \textbf{attention scores} determine how much each word contributes to another's meaning, producing a rich, context-aware embedding. \textbf{Multi-head attention} runs several of these mechanisms in parallel to capture diverse linguistic patterns simultaneously.
+\end{definition}
+
+\subsection*{The Transformer Block}
+A standard Transformer block processes features through the following stages:
+\begin{enumerate}
+    \item \textbf{Positional Encoding:} Added to input embeddings to retain the structural order of words, which would otherwise be lost during parallel processing.
+    \item \textbf{Self-Attention:} Captures contextual relationships across the sequence.
+    \item \textbf{Add \& Normalize:} A residual connection combined with layer normalization to stabilize and accelerate training.
+    \item \textbf{Feed Forward Network:} Applies non-linear transformations to the features.
+    \item \textbf{Add \& Normalize:} A final stabilization step before passing the output to the next block.
+\end{enumerate}
+
+\subsection*{Transformer Topologies}
+\begin{description}
+    \item[Encoder-only (e.g., BERT):] Processes the full input sequence simultaneously (bidirectional). Excellent for NLU tasks where complete context is required, such as sentiment classification or semantic search.
+    \item[Decoder-only (e.g., GPT):] Future words are masked to strictly preserve generation order. The model predicts the sequence auto-regressively (step-by-step). This is the standard architecture for modern generative LLMs.
+    \item[Encoder-Decoder (e.g., T5):] The Encoder builds a full contextual representation of the input, while the Decoder generates the output step-by-step using cross-attention to reference the Encoder's state. Ideal for sequence-to-sequence tasks like translation and summarization.
+\end{description}
+
+\section*{Generative AI: Autoencoders and GANs}
+
+Generative AI principles extend beyond text to the synthesis of complex continuous data, such as images.
+
+\begin{definition}[Autoencoders]
+Neural networks designed to learn efficient, compressed representations (embeddings) of data in an unsupervised manner.
+\begin{itemize}
+    \item \textbf{Encoder:} Compresses the high-dimensional input data (e.g., an image) into a low-dimensional \textit{latent vector}.
+    \item \textbf{Decoder:} Attempts to rebuild the original data from the compressed latent vector.
+    \item \textbf{Training Goal:} Minimize the \textbf{Reconstruction Loss} (the mathematical difference between the original input and the reconstructed output).
+\end{itemize}
+\end{definition}
+
+\begin{definition}[Generative Adversarial Networks (GANs)]
+A generative framework where two neural networks are trained simultaneously in a zero-sum adversarial game.
+\begin{itemize}
+    \item \textbf{Generator ($G$):} Takes a random noise vector as input and attempts to synthesize a realistic data sample (e.g., a forged handwritten digit).
+    \item \textbf{Discriminator ($D$):} Takes an input image (which has a 50\% chance of being a real dataset image and a 50\% chance of being generated by $G$) and predicts whether it is real or fake.
+\end{itemize}
+Through continuous competition, the Generator learns to map random noise into highly realistic, structured data distributions to fool the Discriminator.
+\end{definition}

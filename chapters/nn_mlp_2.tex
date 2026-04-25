@@ -1,0 +1,74 @@
+\chapter*{Neural Networks 2: MLPs, Design and Optimization}
+\addcontentsline{toc}{chapter}{Neural Networks 2: MLPs, Design and Optimization}
+
+\section*{The Optimization Problem}
+
+Training a Neural Network is fundamentally an optimization problem. The goal is to find a set of weights $\mathbf{w}$ such that the network's parameterized function $f_{\mathbf{w}}(X)$ closely approximates the true function $f(X)$ over a training dataset $\mathcal{D}$.
+
+\begin{definition}[Empirical Risk Minimization]
+We iteratively update the weights $\mathbf{w}$ to minimize a specified loss function $L(f_{\mathbf{w}}(\xx), y)$. For regression, a common choice is the \textbf{Expected Squared Error} over the dataset:
+$$E_{\mathcal{D}}[\mathbf{w}] = \frac{1}{2} \sum_{i=1}^{m} (f_{\mathbf{w}}(\xx^{(i)}) - y^{(i)})^2$$
+Because an MLP is a composite non-linear function, this error surface is highly \textbf{non-convex}, containing many local minima, plateaus, and steep valleys[cite: 455, 456].
+\end{definition}
+
+\section*{Gradient Descent and Backpropagation}
+
+Since analytical solutions for the global minimum are impossible for such non-convex surfaces, we use \textbf{Gradient Descent (GD)}. We calculate the gradient of the error function $\nabla E(\mathbf{w})$ and take a step in the opposite direction:
+$$\Delta \mathbf{w} = -\eta \nabla E(\mathbf{w})$$
+where $\eta$ is the learning rate (or step size)[cite: 323].
+
+\subsection*{Backpropagation (The Chain Rule)}
+Because the network is a deep composite function (e.g., $h(\xx) = g(f(\xx))$), we cannot immediately compute the gradient of the error with respect to the weights in the earliest layers[cite: 339]. We use \textbf{Backpropagation}, which is an efficient application of the \textbf{chain rule} of calculus.
+\begin{itemize}
+    \item We first compute a forward pass to get the network's prediction and the loss.
+    \item We then propagate the error backwards, computing local derivatives at each layer.
+    \item The chain rule multiplies these local gradients recursively (e.g., $\frac{\partial h}{\partial x} = \frac{\partial h}{\partial u} \frac{\partial u}{\partial x}$), yielding the gradient for every single weight in the network[cite: 336, 339].
+\end{itemize}
+
+\section*{Gradient Descent Implementations}
+
+How much data we use to compute $\nabla E(\mathbf{w})$ before taking a step defines the GD variant[cite: 324, 325]:
+\begin{description}
+    \item[Batch Gradient Descent:] Computes the gradient over the \textit{entire} dataset. Slow per step and computationally heavy.
+    \item[Stochastic Gradient Descent (SGD):] Computes the gradient and updates weights using a \textit{single} data point. Fast but yields a highly noisy trajectory.
+    \item[Mini-batch SGD:] Computes the gradient over a subset of size $N \ll m$. This is the standard in deep learning, as it balances computational efficiency (via vectorization) and gradient stability.
+\end{description}
+
+\section*{Advanced Optimizers}
+
+Standard SGD can struggle with pathological curvatures (like steep valleys) or noisy gradients. Modern training relies on advanced optimizers:
+
+\begin{itemize}
+    \item \textbf{Momentum:} Accumulates past gradients (velocity) to smooth out the optimization trajectory. It accelerates convergence in consistent directions and dampens oscillations[cite: 356, 359].
+    \item \textbf{Nesterov Accelerated Gradient (NAG):} Looks ahead to where the momentum would carry the weights, and calculates the gradient at \textit{that} future point. This helps prevent overshooting the optimal solution[cite: 368].
+    \item \textbf{Adam (Adaptive Moment Estimation):} The standard for training modern networks. It combines momentum (1st statistical moment of the gradients) with an adaptive learning rate (2nd statistical moment of squared gradients). It ensures stable updates and corrects initial biases[cite: 369, 370].
+\end{itemize}
+
+\section*{Multi-Class Classification: Softmax and Cross-Entropy}
+
+For multi-class classification (e.g., MNIST digit recognition), the network's final layer outputs a vector of raw scores (logits) $\mathbf{z}$[cite: 377, 385].
+
+\begin{definition}[Softmax Function]
+The Softmax function squashes the $K$-dimensional vector of real-valued logits into a normalized probability distribution (values in $[0,1]$ that sum to 1)[cite: 377, 378].
+\end{definition}
+
+\begin{definition}[Cross-Entropy Loss]
+Used in tandem with Softmax. It measures the divergence between the true one-hot encoded label distribution $\mathbf{y}$ and the predicted probabilities $\hat{\mathbf{y}}$[cite: 383, 385]. For a single sample with true class $c$:
+$$\text{CEL} = -\log(\hat{y}_c)$$
+This cleanly penalizes confident incorrect predictions. The exponential in Softmax pairs perfectly with the logarithm in CEL, simplifying gradient calculations and avoiding numerical overflow[cite: 383, 384].
+\end{definition}
+
+\section*{Training Dynamics and MLP Limitations}
+
+\begin{remark}[Epochs]
+Learning is organized in \textbf{Epochs}. One epoch represents one full sweep of the entire training dataset using the mini-batch updates[cite: 395]. Balancing the number of epochs and the batch size is critical to prevent overfitting (too many epochs) or underfitting (too few)[cite: 395].
+\end{remark}
+
+\begin{remark}[Limitations of Fully-Connected MLPs]
+When dealing with structured data like images, MLPs show significant weaknesses[cite: 408, 409]:
+\begin{enumerate}
+    \item \textbf{Insensitivity to Input Order:} An image must be flattened into a 1D vector. The MLP ignores spatial correlations; shuffling all pixels identically across the dataset yields the exact same performance[cite: 410].
+    \item \textbf{High Parameter Count:} Dense connections lead to a massive number of weights (e.g., millions for small images), increasing memory constraints and the risk of overfitting[cite: 408].
+\end{enumerate}
+These limitations motivate architectures with structural awareness, such as Convolutional Neural Networks (CNNs).
+\end{remark}

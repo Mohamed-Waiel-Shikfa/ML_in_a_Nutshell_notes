@@ -1,0 +1,64 @@
+\chapter*{Practical Applications: Transformers, LLMs, and GANs}
+\addcontentsline{toc}{chapter}{Practical Applications: Transformers, LLMs, and GANs}
+
+\section*{The Hugging Face Ecosystem}
+
+While understanding the underlying mathematical and architectural principles of Transformers is crucial, modern Machine Learning workflows heavily rely on high-level libraries for efficiency. \textbf{Hugging Face} has emerged as the standard ecosystem for Natural Language Processing and Generative AI.
+
+\begin{definition}[Hugging Face Libraries]
+The ecosystem is primarily built around two core libraries:
+\begin{itemize}
+    \item \textbf{\texttt{transformers}:} Provides thousands of pre-trained models (like BERT, GPT, T5) to perform tasks on texts, images, and audio. It abstracts away the complex PyTorch/TensorFlow implementations into simple APIs.
+    \item \textbf{\texttt{datasets}:} A highly efficient library designed to easily download, process, and share massive datasets used for training and evaluating machine learning models.
+\end{itemize}
+\end{definition}
+
+\section*{Working with BERT-Based Models}
+
+BERT (Bidirectional Encoder Representations from Transformers) is an encoder-only architecture excelling at Natural Language Understanding (NLU) tasks.
+
+\subsection*{Tokenization in Practice}
+Before feeding raw text to a BERT model, it must be tokenized and formatted exactly as the model expects.
+\begin{lstlisting}[style=pythonstyle]
+from transformers import AutoTokenizer
+
+# Load the pre-trained tokenizer associated with the specific model
+tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+
+# Tokenize text: yields input_ids (token IDs) and attention_mask
+encoded_input = tokenizer("Transformers are highly efficient.")
+\end{lstlisting}
+\textit{Note:} The tokenizer maps words to sub-word tokens (e.g., WordPiece), assigns numerical IDs, and automatically generates the \texttt{attention\_mask} to tell the model which tokens are real data and which are padding.
+
+\subsection*{Text Classification and Sentence Similarity}
+Because BERT processes text bidirectionally, it generates rich contextual embeddings for the entire sentence.
+\begin{description}
+    \item[Text Classification:] A common workflow is adding a classification head (a dense layer) on top of BERT's \texttt{[CLS]} token output to classify sequences (e.g., sentiment analysis, spam detection).
+    \item[Sentence Similarity:] By extracting the embeddings of two different sentences, we can compute metrics like \textbf{Cosine Similarity} to determine how semantically close they are, which is the foundation of semantic search.
+\end{description}
+
+\section*{Generative AI in Practice}
+
+\subsection*{Language Generation with GPT-Based Models}
+Unlike BERT, GPT (Generative Pre-trained Transformer) models use a \textbf{decoder-only} architecture optimized for auto-regressive text generation.
+
+\begin{remark}[Prompting and Generation]
+In practical applications, GPT models are initialized with a "prompt". The model calculates the probability distribution of the next token and samples from it. Controlling parameters like \textbf{Temperature} (randomness of selection) and \textbf{Top-k / Top-p} (limiting the pool of probable next words) is essential for guiding the creativity and coherence of the generated text.
+\end{remark}
+
+\subsection*{Image Generation with GANs}
+While Transformers dominate text, Generative Adversarial Networks (GANs) and Diffusion models are the practical standards for image generation.
+\begin{itemize}
+    \item \textbf{Implementation Focus:} In a practical workflow, implementing a GAN requires setting up two competing networks—the Generator and the Discriminator.
+    \item \textbf{Training Loop:} The training loop is notoriously delicate. You must alternate between training the Discriminator to correctly identify real vs. generated images, and training the Generator to produce images that fool the Discriminator. If one network outpaces the other, the model suffers from \textit{mode collapse} or fails to converge.
+\end{itemize}
+
+\section*{Summary of Modern ML Workflows}
+Whether using BERT for classification or GPT for generation, the modern NLP pipeline follows a standardized flow:
+\begin{enumerate}
+    \item \textbf{Acquire Data:} Stream datasets using \texttt{datasets}.
+    \item \textbf{Preprocess:} Tokenize text ensuring sequence padding and truncation.
+    \item \textbf{Load Model:} Initialize a pre-trained base model (Transfer Learning).
+    \item \textbf{Fine-tune (Optional):} Train the model on your specific dataset using an optimizer like AdamW.
+    \item \textbf{Evaluate:} Test the model using domain-specific metrics (e.g., Accuracy, F1 for classification; BLEU, ROUGE for generation).
+\end{enumerate}

@@ -1,0 +1,59 @@
+\chapter*{Neural Networks 1: Multi-Layer Perceptron (MLP)}
+\addcontentsline{toc}{chapter}{Neural Networks 1: Multi-Layer Perceptron (MLP)}
+
+\section*{From Biological Neurons to Artificial Units}
+
+Artificial Neural Networks (ANNs) are inspired by the idea of mimicking the human brain through a parallel and distributed network of activation units[3].
+
+\begin{definition}[Artificial Neuron]
+The fundamental building block of an ANN is the artificial neuron, which mimics biological neurons and synaptic connections[5]. It consists of three main components:
+\begin{enumerate}
+    \item \textbf{Input function (linear):} Computes a weighted sum of the inputs[5, 6].
+    \item \textbf{Activation function (non-linear):} Applied to the linear input[6].
+    \item \textbf{Output:} The resulting value of the activation is passed on via fan-out[6].
+\end{enumerate}
+\end{definition}
+
+The earliest model of a linear classifier, the \textbf{Perceptron}, was designed by F. Rosenblatt in the 1950s-60s[6]. A neuron activates and fires (e.g., passing output from 0 to 1) if the sum of its inputs reaches a certain internal threshold[7].
+
+\section*{Neural Networks as Function Approximators}
+
+At their core, neural networks are parametric non-linear function approximators[14].
+
+\begin{definition}[Network Goal]
+Given a dataset of training examples, a neural network aims to learn a generic non-linear mapping $f: X \to Y$[4]. It estimates the target function through a parametric estimator $f_{\mathbf{w}}$, parameterized by its connection weights $\mathbf{w}$[4, 5]. The goal of training is to iteratively change the weights $\mathbf{w}$ to minimize a loss function, such as Mean Squared Error (MSE), over the training dataset[15, 16]. This is typically achieved using gradient descent[16].
+\end{definition}
+
+\section*{Network Topologies}
+
+\begin{description}
+    \item[Feed-Forward (FF) Networks:] Data processing proceeds sequentially through stages—from the input layer, through one or more intermediate \textbf{hidden layers}, to the output layer[16]. Examples include Multi-Layer Perceptrons (MLPs) which use fully connected dense layers, and Convolutional Neural Networks (CNNs)[16, 17].
+    \item[Recurrent Neural Networks (RNNs):] Contain self-recurrent inputs that allow the network to maintain a state[17, 18]. When unrolled in time, they are highly effective for learning from sequences, time series, and text or video classification[18].
+\end{description}
+
+\section*{The Multi-Layer Perceptron (MLP) and Feature Learning}
+
+An MLP is a deep feed-forward network consisting of fully connected layers, meaning each unit is fully connected to the units of the preceding layer[16, 17].
+
+\begin{remark}[Why Non-Linear Activations?]
+Hidden layers allow the network to learn non-linear functions[16]. A multi-layer network constructed entirely of linear units would lack this capacity. To learn complex patterns, \textbf{non-linear activation functions} are essential. While the sigmoid function (akin to logistic regression) is a classic choice, it is not the only option available for modern networks[22, 24].
+\end{remark}
+
+\subsection*{Hidden Layers as Feature Extractors}
+The true power of an MLP lies in its hidden layers, making neural networks excellent feature learners[24, 26].
+\begin{itemize}
+    \item Each hidden unit takes feature values as input and performs a non-linear feature extraction[24].
+    \item The collective outputs from all units in a hidden layer generate a \textbf{feature vector}, which acts as the input for the subsequent layer[24].
+    \item Through multiple stages, the network recursively generates features, learning a feature map $\boldsymbol{\phi}(\xx)$ that represents a highly non-linear transformation of the original inputs[24].
+\end{itemize}
+
+\section*{Mathematical Complexity and Design Choices}
+
+An MLP represents a highly non-linear, \textbf{non-convex} composite function[27, 28].
+
+Designing an effective MLP requires tuning several crucial architectural elements[28]:
+\begin{enumerate}
+    \item \textbf{Representational Power:} The number of hidden units determines the network's capacity to represent complex patterns[28].
+    \item \textbf{Architecture Shape:} Deciding whether the network should be \textit{wide} (many units) or \textit{deep} (many hidden layers)[28].
+    \item \textbf{Activation Functions:} Selecting the appropriate non-linear function for the units[28].
+\end{enumerate}
