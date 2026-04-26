@@ -5,6 +5,8 @@ This repository contains my personal notes for the course *15-288 ML in a Nutshe
 The notes are based on the course material.
 
 ## Contents
+
+```
 .
 ├── chapters                // Contains latex notes of each lecture
 ├── cheatsheet              // Condensed 8 pages of the material
@@ -25,6 +27,7 @@ The notes are based on the course material.
     ├── 1page_roadmap.pdf
     ├── 1page_roadmap.synctex
     └── 1page_roadmap.tex
+```
 
 ## About the Notes
 
